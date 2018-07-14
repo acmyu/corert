@@ -16,6 +16,8 @@ using System.Runtime.CompilerServices;
 
 using ILCompiler.DependencyAnalysis;
 
+using Internal.Text;
+
 namespace ILCompiler.PEWriter
 {
     /// <summary>
@@ -311,12 +313,26 @@ namespace ILCompiler.PEWriter
             _readyToRunHeaderSize = headerSize;
         }
 
+        private CoreRTNameMangler _nameMangler;
+        
+        private NameMangler GetNameMangler()
+        {
+            if (_nameMangler == null)
+            {
+                _nameMangler = new CoreRTNameMangler(new WindowsNodeMangler(), mangleForCplusPlus: false);
+                _nameMangler.CompilationUnitPrefix = "";
+            }
+            return _nameMangler;
+        }
+
         /// <summary>
         /// Add an ObjectData block to a given section.
         /// </summary>
         /// <param name="data">Block to add</param>
         /// <param name="sectionIndex">Section index</param>
-        public void AddObjectData(ObjectNode.ObjectData objectData, int sectionIndex, string name)
+        /// <param name="name">Node name to emit in the map file</param>
+        /// <param name="mapFile">Optional map file to emit</param>
+        public void AddObjectData(ObjectNode.ObjectData objectData, int sectionIndex, string name, TextWriter mapFile)
         {
             Section section = _sections[sectionIndex];
 
@@ -339,13 +355,24 @@ namespace ILCompiler.PEWriter
                 }
             }
 
-            Console.WriteLine($@"S{sectionIndex}+0x{alignedOffset:X4}..{(alignedOffset + objectData.Data.Length):X4}: {objectData.Data.Length:X4} * {name}");
+            if (mapFile != null)
+            {
+                mapFile.WriteLine($@"S{sectionIndex}+0x{alignedOffset:X4}..{(alignedOffset + objectData.Data.Length):X4}: {objectData.Data.Length:X4} * {name}");
+            }
+
             section.Content.WriteBytes(objectData.Data);
 
             if (objectData.DefinedSymbols != null)
             {
                 foreach (ISymbolDefinitionNode symbol in objectData.DefinedSymbols)
                 {
+                    if (mapFile != null)
+                    {
+                        Utf8StringBuilder sb = new Utf8StringBuilder();
+                        symbol.AppendMangledName(GetNameMangler(), sb);
+                        int sectionRelativeOffset = alignedOffset + symbol.Offset;
+                        mapFile.WriteLine($@"  +0x{sectionRelativeOffset:X4}: {sb.ToString()}");
+                    }
                     _symbolMap.Add(symbol, new SymbolTarget(
                         sectionIndex: sectionIndex,
                         offset: alignedOffset + symbol.Offset));

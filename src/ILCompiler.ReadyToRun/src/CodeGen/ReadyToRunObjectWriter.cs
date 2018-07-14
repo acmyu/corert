@@ -44,13 +44,24 @@ namespace ILCompiler.DependencyAnalysis
             _nodes = nodes;
             _nodeFactory = factory;
         }
-        
+
         public void EmitPortableExecutable()
         {
             bool succeeded = false;
 
+            FileStream mapFileStream = null;
+            TextWriter mapFile = null;
+
             try
             {
+                string mapFileName = Path.ChangeExtension(_objectFilePath, ".map");
+                mapFileStream = new FileStream(mapFileName, FileMode.Create, FileAccess.Write);
+                mapFile = new StreamWriter(mapFileStream);
+
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
+                mapFile.WriteLine($@"R2R object emission started: {DateTime.Now}");
+
                 var peBuilder = new R2RPEBuilder(Machine.Amd64, _nodeFactory.PEReader, new ValueTuple<string, SectionCharacteristics>[0]);
                 var sectionBuilder = new SectionBuilder();
 
@@ -115,23 +126,23 @@ namespace ILCompiler.DependencyAnalysis
                             throw new NotImplementedException();
                     }
 
-                    string name = depNode.GetType().ToString();
-                    int firstGeneric = name.IndexOf('[');
-                    if (firstGeneric < 0)
-                    {
-                        firstGeneric = name.Length;
-                    }
-                    int lastDot = name.LastIndexOf('.', firstGeneric - 1, firstGeneric);
-                    if (lastDot > 0)
-                    {
-                        name = name.Substring(lastDot + 1);
-                    }
-                    if (depNode is ISymbolDefinitionNode symbolDef)
-                    {
-                        name += " \"" + symbolDef.GetMangledName(_nodeFactory.NameMangler) + "\"";
-                    }
+                    string name = null;
 
-                    sectionBuilder.AddObjectData(nodeContents, targetSectionIndex, name);
+                    if (mapFile != null)
+                    {
+                        name = depNode.GetType().ToString();
+                        int firstGeneric = name.IndexOf('[');
+                        if (firstGeneric < 0)
+                        {
+                            firstGeneric = name.Length;
+                        }
+                        int lastDot = name.LastIndexOf('.', firstGeneric - 1, firstGeneric);
+                        if (lastDot > 0)
+                        {
+                            name = name.Substring(lastDot + 1);
+                        }
+                    }
+                    sectionBuilder.AddObjectData(nodeContents, targetSectionIndex, name, mapFile);
                 }
 
                 sectionBuilder.SetReadyToRunHeaderTable(_nodeFactory.Header, _nodeFactory.Header.GetData(_nodeFactory).Data.Length);
@@ -141,10 +152,22 @@ namespace ILCompiler.DependencyAnalysis
                     sectionBuilder.EmitR2R(Machine.Amd64, _nodeFactory.PEReader, peStream);
                 }
 
+                mapFile.WriteLine($@"R2R object emission finished: {DateTime.Now}, {stopwatch.ElapsedMilliseconds} msecs");
+                mapFile.Flush();
+                mapFileStream.Flush();
+
                 succeeded = true;
             }
             finally
             {
+                if (mapFile != null)
+                {
+                    mapFile.Dispose();
+                }
+                if (mapFileStream != null)
+                {
+                    mapFileStream.Dispose();
+                }
                 if (!succeeded)
                 {
                     // If there was an exception while generating the OBJ file, make sure we don't leave the unfinished

@@ -44,7 +44,7 @@ namespace ILCompiler.DependencyAnalysis
             byte[] gcInfo = _methodNode.GCInfo;
 
             // Temporary hotfix - this stands for the AMD64 UNWIND_INFO I don't yet know where to get from
-            dataBuilder.EmitInt(0);
+            dataBuilder.EmitLong(0);
 
             if (gcInfo != null)
             {

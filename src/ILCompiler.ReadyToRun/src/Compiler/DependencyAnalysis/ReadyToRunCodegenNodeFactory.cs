@@ -74,7 +74,7 @@ namespace ILCompiler.DependencyAnalysis
             {
                 MethodWithGCInfo newMethodNode = new MethodWithGCInfo(method);
                 _runtimeFunctionsGCInfo.AddEmbeddedObject(newMethodNode.GCInfoNode);
-                int methodIndex = RuntimeFunctionsTable.Add(newMethodNode, newMethodNode.GCInfoNode);
+                int methodIndex = RuntimeFunctionsTable.Add(newMethodNode);
                 MethodEntryPointTable.Add(newMethodNode, methodIndex, this);
 
                 // TODO: hack - how do we distinguish emitting main entry point from calls between
@@ -275,13 +275,13 @@ namespace ILCompiler.DependencyAnalysis
 
         private ISymbolNode CreateIsInstanceOfHelper(TypeDesc type, mdToken typeRefToken)
         {
-            return new DelayLoadHelper(this, new TypeFixupSignature(
+            return new DelayLoadHelperObj(this, new TypeFixupSignature(
                 ReadyToRunFixupKind.READYTORUN_FIXUP_IsInstanceOf, type, typeRefToken));
         }
 
         private ISymbolNode CreateCastClassHelper(TypeDesc type, mdToken typeRefToken)
         {
-            return new DelayLoadHelper(this, new TypeFixupSignature(
+            return new DelayLoadHelperObj(this, new TypeFixupSignature(
                 ReadyToRunFixupKind.READYTORUN_FIXUP_ChkCast, type, typeRefToken));
         }
 
@@ -326,10 +326,16 @@ namespace ILCompiler.DependencyAnalysis
                     break;
 
                 case ILCompiler.ReadyToRunHelper.GetRuntimeTypeHandle:
-                    return CreateGetRuntimeTypeHandleHelper();
+                    result = CreateGetRuntimeTypeHandleHelper();
+                    break;
 
                 case ILCompiler.ReadyToRunHelper.RngChkFail:
-                    return CreateRangeCheckFailureHelper();
+                    result = CreateRangeCheckFailureHelper();
+                    break;
+
+                case ILCompiler.ReadyToRunHelper.WriteBarrier:
+                    result = CreateWriteBarrierHelper();
+                    break;
 
                 default:
                     throw new NotImplementedException();
@@ -373,6 +379,11 @@ namespace ILCompiler.DependencyAnalysis
         private ISymbolNode CreateRangeCheckFailureHelper()
         {
             return GetReadyToRunHelperCell(ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_RngChkFail);
+        }
+
+        private ISymbolNode CreateWriteBarrierHelper()
+        {
+            return GetReadyToRunHelperCell(ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_WriteBarrier);
         }
 
         protected override IMethodNode CreateUnboxingStubNode(MethodDesc method, mdToken token)
@@ -444,7 +455,8 @@ namespace ILCompiler.DependencyAnalysis
                 "EagerImports", 
                 CorCompileImportType.CORCOMPILE_IMPORT_TYPE_UNKNOWN, 
                 CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_EAGER,
-                (byte)Target.PointerSize);
+                (byte)Target.PointerSize,
+                emitPrecode: false);
             ImportSectionsTable.AddEmbeddedObject(EagerImports);
 
             // All ready-to-run images have a module import helper which gets patched by the runtime on image load
@@ -454,31 +466,34 @@ namespace ILCompiler.DependencyAnalysis
 
             MethodImports = new ImportSectionNode(
                 "MethodImports",
-                CorCompileImportType.CORCOMPILE_IMPORT_TYPE_STUB_DISPATCH,
-                CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_PCODE,
-                (byte)Target.PointerSize);
+                CorCompileImportType.CORCOMPILE_IMPORT_TYPE_EXTERNAL_METHOD,
+                CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_CODE,
+                (byte)Target.PointerSize,
+                emitPrecode: false);
             ImportSectionsTable.AddEmbeddedObject(MethodImports);
 
             HelperImports = new ImportSectionNode(
                 "HelperImports",
                 CorCompileImportType.CORCOMPILE_IMPORT_TYPE_UNKNOWN,
                 CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_PCODE,
-                (byte)Target.PointerSize);
+                (byte)Target.PointerSize,
+                emitPrecode: false);
             ImportSectionsTable.AddEmbeddedObject(HelperImports);
 
             StringImports = new ImportSectionNode(
                 "StringImports",
                 CorCompileImportType.CORCOMPILE_IMPORT_TYPE_STRING_HANDLE,
                 CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_UNKNOWN,
-                (byte)Target.PointerSize);
+                (byte)Target.PointerSize,
+                emitPrecode: true);
             ImportSectionsTable.AddEmbeddedObject(StringImports);
 
+            graph.AddRoot(ImportSectionsTable, "Import sections table is always generated");
             graph.AddRoot(ModuleImport, "Module import is always generated");
             graph.AddRoot(EagerImports, "Eager imports are always generated");
             graph.AddRoot(MethodImports, "Method imports are always generated");
             graph.AddRoot(HelperImports, "Helper imports are always generated");
             graph.AddRoot(StringImports, "String imports are always generated");
-            graph.AddRoot(ImportSectionsTable, "Import sections table is always generated");
             graph.AddRoot(Header, "ReadyToRunHeader is always generated");
         }
 
@@ -505,8 +520,7 @@ namespace ILCompiler.DependencyAnalysis
             if (!_importMethods.TryGetValue(method, out methodImport))
             {
                 // First time we see a given external method - emit indirection cell and the import entry
-                ReadyToRun.MethodImport indirectionCell = new ReadyToRun.MethodImport(MethodImports, fixupKind, method, token, localMethod);
-                MethodImports.AddImport(this, indirectionCell);
+                ExternalMethodHelper indirectionCell = new ExternalMethodHelper(this, fixupKind, method, token, localMethod);
                 _importMethods.Add(method, indirectionCell);
                 methodImport = indirectionCell;
             }

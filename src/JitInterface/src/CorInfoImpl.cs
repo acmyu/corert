@@ -2231,7 +2231,14 @@ namespace Internal.JitInterface
             pResult.accessAllowed = CorInfoIsAccessAllowedResult.CORINFO_ACCESS_ALLOWED;
 
             if (!field.IsStatic || !field.HasRva)
+            {
                 pResult.offset = (uint)field.Offset.AsInt;
+                // HACKHACKHACK: for some reason EcmaType adds sizeof(IntPtr) to static field offsets
+                if (field.IsStatic)
+                {
+                    pResult.offset -= (uint)sizeof(IntPtr);
+                }
+            }
             else
                 pResult.offset = 0xBAADF00D;
 
@@ -2802,8 +2809,16 @@ namespace Internal.JitInterface
                 entryPoint = GetHelperFtnUncached(ftnNum);
                 _helperCache.Add(ftnNum, entryPoint);
             }
-            ppIndirection = null;
-            return (void*)ObjectToHandle(entryPoint);
+            if (entryPoint.RepresentsIndirectionCell)
+            {
+                ppIndirection = (void*)ObjectToHandle(entryPoint);
+                return null;
+            }
+            else
+            {
+                ppIndirection = null;
+                return (void*)ObjectToHandle(entryPoint);
+            }
         }
 
         private void getFunctionEntryPoint(CORINFO_METHOD_STRUCT_* ftn, ref CORINFO_CONST_LOOKUP pResult, CORINFO_ACCESS_FLAGS accessFlags)

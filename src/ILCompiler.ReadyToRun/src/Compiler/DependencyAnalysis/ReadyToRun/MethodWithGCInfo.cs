@@ -3,9 +3,10 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Diagnostics;
 using Internal.TypeSystem;
 
-namespace ILCompiler.DependencyAnalysis
+namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
     public class MethodWithGCInfo : MethodCodeNode
     {
@@ -22,9 +23,13 @@ namespace ILCompiler.DependencyAnalysis
             ObjectData methodCode = base.GetData(factory, relocsOnly);
             if (relocsOnly)
             {
-                Relocation[] relocs = new Relocation[methodCode.Relocs.Length + 1];
+                int extraRelocs = 1; // GCInfoNode
+
+                Relocation[] relocs = new Relocation[methodCode.Relocs.Length + extraRelocs];
                 Array.Copy(methodCode.Relocs, relocs, methodCode.Relocs.Length);
-                relocs[methodCode.Relocs.Length] = new Relocation(RelocType.IMAGE_REL_BASED_ADDR32NB, 0, GCInfoNode);
+                int extraRelocIndex = methodCode.Relocs.Length;
+                relocs[extraRelocIndex++] = new Relocation(RelocType.IMAGE_REL_BASED_ADDR32NB, 0, GCInfoNode);
+                Debug.Assert(extraRelocIndex == relocs.Length);
                 methodCode = new ObjectData(methodCode.Data, relocs, methodCode.Alignment, methodCode.DefinedSymbols); 
             }
             return methodCode;

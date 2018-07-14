@@ -17,12 +17,12 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
     public class RuntimeFunctionsTableNode : HeaderTableNode
     {
-        private readonly List<(MethodCodeNode Method, ISymbolNode GCInfo)> _methodNodes;
+        private readonly List<MethodWithGCInfo> _methodNodes;
 
         public RuntimeFunctionsTableNode(TargetDetails target)
             : base(target)
         {
-            _methodNodes = new List<(MethodCodeNode Method, ISymbolNode GCInfo)>();
+            _methodNodes = new List<MethodWithGCInfo>();
         }
 
         public override void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
@@ -31,9 +31,9 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             sb.Append("__ReadyToRunRuntimeFunctionsTable");
         }
 
-        public int Add(MethodCodeNode method, ISymbolNode gcInfoNode)
+        public int Add(MethodWithGCInfo method)
         {
-            _methodNodes.Add((Method: method, GCInfo: gcInfoNode));
+            _methodNodes.Add(method);
             return _methodNodes.Count - 1;
         }
 
@@ -44,18 +44,18 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             // Add the symbol representing this object node
             runtimeFunctionsBuilder.AddSymbol(this);
 
-            foreach ((MethodCodeNode Method, ISymbolNode GCInfo) methodAndGCInfo in _methodNodes)
+            foreach (MethodWithGCInfo method in _methodNodes)
             {
                 // StartOffset of the runtime function
-                runtimeFunctionsBuilder.EmitReloc(methodAndGCInfo.Method, RelocType.IMAGE_REL_BASED_ADDR32NB, delta: 0);
+                runtimeFunctionsBuilder.EmitReloc(method, RelocType.IMAGE_REL_BASED_ADDR32NB, delta: 0);
                 if (!relocsOnly && Target.Architecture == TargetArchitecture.X64)
                 {
                     // On Amd64, the 2nd word contains the EndOffset of the runtime function
-                    int methodLength = methodAndGCInfo.Method.GetData(factory, relocsOnly).Data.Length;
-                    runtimeFunctionsBuilder.EmitReloc(methodAndGCInfo.Method, RelocType.IMAGE_REL_BASED_ADDR32NB, delta: methodLength);
+                    int methodLength = method.GetData(factory, relocsOnly).Data.Length;
+                    runtimeFunctionsBuilder.EmitReloc(method, RelocType.IMAGE_REL_BASED_ADDR32NB, delta: methodLength);
                 }
                 // Emit the GC info RVA
-                runtimeFunctionsBuilder.EmitReloc(methodAndGCInfo.GCInfo, RelocType.IMAGE_REL_BASED_ADDR32NB, delta: methodAndGCInfo.GCInfo.Offset);
+                runtimeFunctionsBuilder.EmitReloc(method.GCInfoNode, RelocType.IMAGE_REL_BASED_ADDR32NB);
             }
 
             return runtimeFunctionsBuilder.ToObjectData();

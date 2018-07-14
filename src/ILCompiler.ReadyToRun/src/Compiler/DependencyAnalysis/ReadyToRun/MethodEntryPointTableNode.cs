@@ -129,7 +129,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
             foreach (Relocation reloc in relocations)
             {
-                if (reloc.Target is Import fixupCell && fixupCell.IsDelayed)
+                if (reloc.Target is Import fixupCell && fixupCell.EmitPrecode)
                 {
                     if (fixupCells == null)
                     {

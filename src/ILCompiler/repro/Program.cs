@@ -9,9 +9,11 @@ using System.Text;
 
 internal class Program
 {
-    [ThreadStatic] private static string TextFileName = @"D:\git\corert\src\ILCompiler\repro\Program.cs";
+    [ThreadStatic]
+    private static string TextFileName = @"D:\git\corert\src\ILCompiler\repro\Program.cs";
 
-    [ThreadStatic] private static int LineCount = 0;
+    [ThreadStatic]
+    private static int LineCount = 0;
 
     private static bool NewString()
     {
@@ -104,7 +106,12 @@ internal class Program
 
     private static bool ReadAllText()
     {
+        Console.WriteLine($@"Dumping file: {TextFileName}");
         string textFile = File.ReadAllText(TextFileName);
+        if (textFile.Length > 1000)
+        {
+            textFile = textFile.Substring(0, 1000) + "...";
+        }
         Console.WriteLine(textFile);
 
         return textFile.Length > 0;
@@ -189,6 +196,9 @@ internal class Program
 
     public static int Main()
     {
+        Console.WriteLine($@"TextFileName (1): {TextFileName}");
+        Console.WriteLine($@"TextFileName (2): {TextFileName}");
+
         const int Success = 1;
         const int Failure = 0;
 
@@ -203,7 +213,7 @@ internal class Program
         // TestCounts[BoxUnbox() ? Success : Failure]++;
         // TestCounts[TypeHandle() ? Success : Failure]++;
         // TestCounts[RuntimeTypeHandle() ? Success : Failure]++;
-        // TestCounts[ReadAllText() ? Success : Failure]++;
+        TestCounts[ReadAllText() ? Success : Failure]++;
         // TestCounts[StreamReaderReadLine() ? Success : Failure]++;
         /*
         TestCounts[ConstructListOfInt() ? Success : Failure]++;

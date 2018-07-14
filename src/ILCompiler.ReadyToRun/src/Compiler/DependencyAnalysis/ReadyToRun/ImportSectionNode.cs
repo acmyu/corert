@@ -21,7 +21,7 @@ using ILCompiler.DependencyAnalysis;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
-    class RvaEmbeddedPointerIndirectionNode<TTarget> : EmbeddedPointerIndirectionNode<TTarget>
+    class RvaEmbeddedPointerIndirectionNode<TTarget> : EmbeddedPointerIndirectionNode<TTarget>, ISymbolDefinitionNode
         where TTarget : ISortableSymbolNode
     {
         public RvaEmbeddedPointerIndirectionNode(TTarget target)
@@ -44,6 +44,8 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         }
 
         protected override int ClassCode => -66002498;
+
+        public int Offset => OffsetFromBeginningOfArray;
     }
 
     public class ImportSectionNode : EmbeddedObjectNode
@@ -51,17 +53,20 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         private readonly ArrayOfEmbeddedDataNode<Import> _imports;
         // TODO: annoying - today there's no way to put signature RVA's into R/O data section
         private readonly ArrayOfEmbeddedPointersNode<Signature> _signatures;
+
         private readonly CorCompileImportType _type;
         private readonly CorCompileImportFlags _flags;
         private readonly byte _entrySize;
         private readonly string _name;
+        private readonly bool _emitPrecode;
 
-        public ImportSectionNode(string name, CorCompileImportType importType, CorCompileImportFlags flags, byte entrySize)
+        public ImportSectionNode(string name, CorCompileImportType importType, CorCompileImportFlags flags, byte entrySize, bool emitPrecode)
         {
             _name = name;
             _type = importType;
             _flags = flags;
             _entrySize = entrySize;
+            _emitPrecode = emitPrecode;
 
             _imports = new ArrayOfEmbeddedDataNode<Import>(_name + "_ImportBegin", _name + "_ImportEnd", null);
             _signatures = new ArrayOfEmbeddedPointersNode<Signature>(_name + "_SigBegin", _name + "_SigEnd", null);
@@ -75,7 +80,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         public string Name => _name;
 
-        public bool IsDelayed => (_flags & CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_EAGER) == 0;
+        public bool EmitPrecode => _emitPrecode;
 
         public override bool StaticDependenciesAreComputed => true;
 

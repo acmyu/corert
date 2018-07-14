@@ -22,13 +22,18 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         private readonly ISymbolNode _moduleImport;
 
-        public DelayLoadHelper(ReadyToRunCodegenNodeFactory factory, Signature instanceSignature)
+        protected DelayLoadHelper(ReadyToRunHelper helperId, ReadyToRunCodegenNodeFactory factory, Signature instanceSignature)
         {
-            _helperCell = factory.GetReadyToRunHelperCell(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper);
+            _helperCell = factory.GetReadyToRunHelperCell(helperId);
             _instanceSignature = instanceSignature;
             _instanceCell = new Import(factory.HelperImports, instanceSignature);
             factory.HelperImports.AddImport(factory, _instanceCell);
             _moduleImport = factory.ModuleImport;
+        }
+
+        public DelayLoadHelper(ReadyToRunCodegenNodeFactory factory, Signature instanceSignature)
+            : this(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper, factory, instanceSignature)
+        {
         }
 
         public void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
@@ -101,5 +106,13 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public override bool IsShareable => false;
         public override bool StaticDependenciesAreComputed => true;
         protected override int ClassCode => 433266948;
+    }
+
+    public class DelayLoadHelperObj : DelayLoadHelper
+    {
+        public DelayLoadHelperObj(ReadyToRunCodegenNodeFactory nodeFactory, Signature instanceSignature)
+            : base(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper_Obj, nodeFactory, instanceSignature)
+        {
+        }
     }
 }

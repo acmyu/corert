@@ -29,7 +29,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         protected override int ClassCode => 667823013;
 
-        public virtual bool IsDelayed => Table.IsDelayed;
+        public virtual bool EmitPrecode => Table.EmitPrecode;
 
         public override void EncodeData(ref ObjectDataBuilder dataBuilder, NodeFactory factory, bool relocsOnly)
         {
