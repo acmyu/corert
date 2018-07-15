@@ -10,7 +10,7 @@ using System.Text;
 internal class Program
 {
     //[ThreadStatic]
-    private static string TextFileName = @"D:\git\corert\src\ILCompiler\repro\Program.cs";
+    private static string TextFileName = @"C:\Windows\Microsoft.NET\Framework\v4.0.30319\clientexclusionlist.xml";
 
     //[ThreadStatic]
     private static int LineCount = 0;

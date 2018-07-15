@@ -43,6 +43,8 @@ namespace ILCompiler
 
         public NameMangler NameMangler { get { return null; } }
 
+        public bool EmitDirectVirtualCalls => false;
+        
         public ObjectNode GetFieldRvaData(FieldDesc field)
         {
             // Use the typical field definition in case this is an instantiated generic type
