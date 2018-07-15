@@ -1,0 +1,50 @@
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System.Collections.Generic;
+using Internal.Text;
+
+namespace ILCompiler.DependencyAnalysis.ReadyToRun
+{
+    /// <summary>
+    /// This class represents a single indirection cell used to call delay load helpers.
+    /// </summary>
+    public class DelayLoadHelperImport : Import
+    {
+        private readonly DelayLoadHelperThunk _delayLoadHelper;
+
+        public DelayLoadHelperImport(ReadyToRunCodegenNodeFactory factory, ReadyToRunHelper helper, Signature instanceSignature)
+            : base(factory.HelperImports, instanceSignature)
+        {
+            factory.HelperImports.AddImport(factory, this);
+            _delayLoadHelper = new DelayLoadHelperThunk(factory, this);
+        }
+
+        protected override string GetName(NodeFactory factory)
+        {
+            return "DelayLoadHelperImport("
+                + _delayLoadHelper.GetMangledName(factory.NameMangler)
+                + ")->" + ImportSignature.GetMangledName(factory.NameMangler);
+        }
+
+        protected override int ClassCode => 667823013;
+
+        public override void EncodeData(ref ObjectDataBuilder dataBuilder, NodeFactory factory, bool relocsOnly)
+        {
+            // This needs to be an empty target pointer since it will be filled in with Module*
+            // when loaded by CoreCLR
+            dataBuilder.EmitReloc(_delayLoadHelper,
+                factory.Target.PointerSize == 4 ? RelocType.IMAGE_REL_BASED_HIGHLOW : RelocType.IMAGE_REL_BASED_DIR64);
+        }
+
+        public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
+        {
+            return new DependencyListEntry[] 
+            {
+                new DependencyListEntry(_delayLoadHelper, "Delay load helper thunk for ready-to-run fixup import"),
+                new DependencyListEntry(ImportSignature, "Signature for ready-to-run fixup import"),
+            };
+        }
+    }
+}

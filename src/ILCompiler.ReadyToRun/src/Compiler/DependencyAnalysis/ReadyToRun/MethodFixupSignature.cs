@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 
 using Internal.JitInterface;
 using Internal.Text;
@@ -33,7 +34,29 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             dataBuilder.AddSymbol(this);
 
             dataBuilder.EmitByte((byte)_fixupKind);
-            SignatureBuilder.EmitTokenRid(ref dataBuilder, _methodToken);
+            SignatureBuilder.MethodSigKind sigKind;
+            switch (_fixupKind)
+            {
+                case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry:
+                case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry:
+                    sigKind = SignatureBuilder.MethodSigKind.General;
+                    break;
+
+                case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_DefToken:
+                // case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry_DefToken:
+                    sigKind = SignatureBuilder.MethodSigKind.DefToken;
+                    break;
+
+                case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_RefToken:
+                // case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry_RefToken:
+                    sigKind = SignatureBuilder.MethodSigKind.RefToken;
+                    break;
+
+                default:
+                    throw new NotImplementedException();
+            }
+
+            SignatureBuilder.EmitMethod(ref dataBuilder, _methodDesc, _methodToken, sigKind);
 
             return dataBuilder.ToObjectData();
         }
@@ -41,7 +64,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public override void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
         {
             sb.Append(nameMangler.CompilationUnitPrefix);
-            sb.Append($@"MethodFixupSignature({_fixupKind.ToString()}): {_methodDesc.ToString()}; token: {(uint)_methodToken:X8})");
+            sb.Append($@"MethodFixupSignature({_fixupKind.ToString()} {(uint)_methodToken:X8}): {_methodDesc.ToString()}");
         }
 
         protected override int CompareToImpl(SortableDependencyNode other, CompilerComparer comparer)

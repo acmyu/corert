@@ -11,7 +11,14 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
     public static class SignatureBuilder
     {
-        public static void EmitData(ref ObjectDataBuilder dataBuilder, uint data)
+        public enum MethodSigKind
+        {
+            General,
+            DefToken,
+            RefToken,
+        }
+
+        public static void EmitUInt(ref ObjectDataBuilder dataBuilder, uint data)
         {
             if (data <= 0x7F)
             {
@@ -55,7 +62,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         public static void EmitTokenRid(ref ObjectDataBuilder dataBuilder, mdToken token)
         {
-            EmitData(ref dataBuilder, (uint)RidFromToken(token));
+            EmitUInt(ref dataBuilder, (uint)RidFromToken(token));
         }
 
         // compress a token
@@ -101,7 +108,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                     throw new NotImplementedException();
             }
 
-            EmitData(ref dataBuilder, rid);
+            EmitUInt(ref dataBuilder, rid);
         }
 
         private static class SignMask
@@ -114,7 +121,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         /// <summary>
         /// Compress a signed integer. The least significant bit of the first compressed byte will be the sign bit.
         /// </summary>
-        public static void EmitSignedInt(ref ObjectDataBuilder dataBuilder, int data)
+        public static void EmitInt(ref ObjectDataBuilder dataBuilder, int data)
         {
             uint isSigned = (data < 0 ? 1u : 0u);
             uint udata = unchecked((uint)data);
@@ -265,6 +272,50 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
             dataBuilder.EmitByte((byte)elementType);
             SignatureBuilder.EmitToken(ref dataBuilder, typeToken);
+        }
+
+        public static void EmitMethod(ref ObjectDataBuilder builder, MethodDesc methodDesc, mdToken methodToken, MethodSigKind methodSig)
+        {
+            switch (methodSig)
+            {
+                case MethodSigKind.General:
+                    switch (TypeFromToken(methodToken))
+                    {
+                        case CorTokenType.mdtMemberRef:
+                            EmitUInt(ref builder, (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MemberRefToken);
+                            EmitMethodRefToken(ref builder, methodDesc, methodToken);
+                            break;
+
+                        case CorTokenType.mdtMethodDef:
+                            EmitUInt(ref builder, (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_None);
+                            EmitMethodDefToken(ref builder, methodDesc, methodToken);
+                            break;
+
+                        default:
+                            throw new NotImplementedException();
+                    }
+                    break;
+
+                case MethodSigKind.DefToken:
+                    EmitMethodDefToken(ref builder, methodDesc, methodToken);
+                    break;
+
+                case MethodSigKind.RefToken:
+                    EmitMethodRefToken(ref builder, methodDesc, methodToken);
+                    break;
+            }
+        }
+
+        private static void EmitMethodDefToken(ref ObjectDataBuilder builder, MethodDesc methodDesc, mdToken methodDefToken)
+        {
+            Debug.Assert(TypeFromToken(methodDefToken) == CorTokenType.mdtMethodDef);
+            EmitUInt(ref builder, RidFromToken(methodDefToken));
+        }
+
+        private static void EmitMethodRefToken(ref ObjectDataBuilder builder, MethodDesc methodDesc, mdToken memberRefToken)
+        {
+            Debug.Assert(TypeFromToken(memberRefToken) == CorTokenType.mdtMemberRef);
+            EmitUInt(ref builder, RidFromToken(memberRefToken));
         }
     }
 }

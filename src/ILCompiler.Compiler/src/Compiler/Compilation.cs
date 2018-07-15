@@ -84,6 +84,8 @@ namespace ILCompiler
             return _methodILCache.GetMethodIL(method);
         }
 
+        public virtual bool EmitDirectVirtualCalls => true;
+
         protected abstract void ComputeDependencyNodeDependencies(List<DependencyNodeCore<NodeFactory>> obj);
 
         protected abstract void CompileInternal(string outputFile, ObjectDumper dumper);

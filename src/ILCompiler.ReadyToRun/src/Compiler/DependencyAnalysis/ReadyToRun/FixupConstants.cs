@@ -28,8 +28,10 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
     /// <summary>
     /// Constants for method and field encoding
     /// </summary>
+    [Flags]
     public enum ReadyToRunMethodSigFlags : byte
     {
+        READYTORUN_METHOD_SIG_None = 0x00,
         READYTORUN_METHOD_SIG_UnboxingStub = 0x01,
         READYTORUN_METHOD_SIG_InstantiatingStub = 0x02,
         READYTORUN_METHOD_SIG_MethodInstantiation = 0x04,
@@ -39,6 +41,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         READYTORUN_METHOD_SIG_OwnerType = 0x40,
     };
 
+    [Flags]
     public enum ReadyToRunFieldSigFlags : byte
     {
         READYTORUN_FIELD_SIG_IndexInsteadOfToken = 0x08,
@@ -46,6 +49,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         READYTORUN_FIELD_SIG_OwnerType = 0x40,
     };
 
+    [Flags]
     public enum ReadyToRunTypeLayoutFlags : byte
     {
         READYTORUN_LAYOUT_HFA = 0x01,

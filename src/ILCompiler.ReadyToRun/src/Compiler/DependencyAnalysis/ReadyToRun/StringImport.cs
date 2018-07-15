@@ -25,12 +25,9 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public override void EncodeData(ref ObjectDataBuilder dataBuilder, NodeFactory factory, bool relocsOnly)
         {
             _definitionOffset = dataBuilder.CountBytes;
-            if (Marked)
-            {
-                // This needs to be an empty target pointer since it will be filled in with the string pointer
-                // when loaded by CoreCLR
-                dataBuilder.EmitZeroPointer();
-            }
+            // This needs to be an empty target pointer since it will be filled in with the string pointer
+            // when loaded by CoreCLR
+            dataBuilder.EmitZeroPointer();
         }
 
         int Offset => _definitionOffset;

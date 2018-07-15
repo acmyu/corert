@@ -11,11 +11,26 @@ namespace ILCompiler
 {
     internal class CompilerMetadataFieldLayoutAlgorithm : MetadataFieldLayoutAlgorithm
     {
+        private readonly bool _isReadyToRunCodegen;
+
+        public CompilerMetadataFieldLayoutAlgorithm(bool isReadyToRunCodegen)
+        {
+            _isReadyToRunCodegen = isReadyToRunCodegen;
+        }
+
         protected override void PrepareRuntimeSpecificStaticFieldLayout(TypeSystemContext context, ref ComputedStaticFieldLayout layout)
         {
-            // GC statics start with a pointer to the "EEType" that signals the size and GCDesc to the GC
-            layout.GcStatics.Size = context.Target.LayoutPointerSize;
-            layout.ThreadStatics.Size = context.Target.LayoutPointerSize;
+            if (_isReadyToRunCodegen)
+            {
+                layout.GcStatics.Size = LayoutInt.Zero;
+                layout.ThreadStatics.Size = LayoutInt.Zero;
+            }
+            else
+            {
+                // GC statics start with a pointer to the "EEType" that signals the size and GCDesc to the GC
+                layout.GcStatics.Size = context.Target.LayoutPointerSize;
+                layout.ThreadStatics.Size = context.Target.LayoutPointerSize;
+            }
         }
 
         protected override void FinalizeRuntimeSpecificStaticFieldLayout(TypeSystemContext context, ref ComputedStaticFieldLayout layout)

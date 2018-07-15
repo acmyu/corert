@@ -43,6 +43,8 @@ namespace ILCompiler
             yield break;
         }
 
+        public override bool EmitDirectVirtualCalls => false;
+
         protected override void CompileInternal(string outputFile, ObjectDumper dumper)
         {
             _corInfo = new CorInfoImpl(this, _jitConfigProvider, CORINFO_RUNTIME_ABI.CORINFO_CORECLR_ABI);

@@ -24,7 +24,9 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         protected override string GetName(NodeFactory factory)
         {
-            return "Import->" + ImportSignature.GetMangledName(factory.NameMangler);
+            Utf8StringBuilder sb = new Utf8StringBuilder();
+            AppendMangledName(factory.NameMangler, sb);
+            return sb.ToString();
         }
 
         protected override int ClassCode => 667823013;
@@ -40,9 +42,8 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         public void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
         {
-            sb.Append($@"Fixup: table = ");
             sb.Append(Table.Name);
-            sb.Append("; Signature: ");
+            sb.Append("->");
             ImportSignature.AppendMangledName(nameMangler, sb);
         }
 

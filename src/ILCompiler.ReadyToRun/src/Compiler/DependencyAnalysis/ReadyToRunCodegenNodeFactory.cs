@@ -68,6 +68,8 @@ namespace ILCompiler.DependencyAnalysis
 
         public ImportSectionNode HelperImports;
 
+        public ImportSectionNode PrecodeImports;
+
         protected override IMethodNode CreateMethodEntrypointNode(MethodDesc method, mdToken token)
         {
             if (CompilationModuleGroup.ContainsMethodBody(method, false))
@@ -121,12 +123,25 @@ namespace ILCompiler.DependencyAnalysis
             return CompilationModuleGroup.ContainsMethodBody(calleeMethod, unboxingStub: false);
         }
 
-        Dictionary<ReadyToRunHelperId, ISymbolNode> _r2rHelpers = new Dictionary<ReadyToRunHelperId, ISymbolNode>();
+        Dictionary<ReadyToRunHelperId, Dictionary<object, ISymbolNode>> _r2rHelpers = new Dictionary<ReadyToRunHelperId, Dictionary<object, ISymbolNode>>();
 
         public override ISymbolNode ReadyToRunHelperWithToken(ReadyToRunHelperId id, object target, mdToken token)
         {
+            if (id == ReadyToRunHelperId.NecessaryTypeHandle)
+            {
+                // We treat TypeHandle and NecessaryTypeHandle the same - don't emit two copies of the same import
+                id = ReadyToRunHelperId.TypeHandle;
+            }
+
+            Dictionary<object, ISymbolNode> helperNodeMap;
+            if (!_r2rHelpers.TryGetValue(id, out helperNodeMap))
+            {
+                helperNodeMap = new Dictionary<object, ISymbolNode>();
+                _r2rHelpers.Add(id, helperNodeMap);
+            }
+
             ISymbolNode helperNode;
-            if (_r2rHelpers.TryGetValue(id, out helperNode))
+            if (helperNodeMap.TryGetValue(target, out helperNode))
             {
                 return helperNode;
             }
@@ -162,7 +177,6 @@ namespace ILCompiler.DependencyAnalysis
                     break;
 
                 case ReadyToRunHelperId.TypeHandle:
-                case ReadyToRunHelperId.NecessaryTypeHandle:
                     helperNode = CreateTypeHandleHelper((TypeDesc)target, token);
                     break;
 
@@ -174,7 +188,7 @@ namespace ILCompiler.DependencyAnalysis
                     throw new NotImplementedException();
             }
 
-            _r2rHelpers.Add(id, helperNode);
+            helperNodeMap.Add(target, helperNode);
             return helperNode;
         }
 
@@ -201,33 +215,42 @@ namespace ILCompiler.DependencyAnalysis
                     throw new NotImplementedException();
             }
 
-            return new DelayLoadHelper(this, new NewObjectFixupSignature(type, typeRefToken));
+            return new DelayLoadHelperImport(this,
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper,
+                new NewObjectFixupSignature(type, typeRefToken));
         }
 
         private ISymbolNode CreateNewArrayHelper(ArrayType type, mdToken typeRefToken)
         {
             Debug.Assert(SignatureBuilder.TypeFromToken(typeRefToken) == CorTokenType.mdtTypeRef);
-            return new DelayLoadHelper(this, new NewArrayFixupSignature(type, typeRefToken));
+            return new DelayLoadHelperImport(this,
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper,
+                new NewArrayFixupSignature(type, typeRefToken));
         }
 
         private ISymbolNode CreateGCStaticBaseHelper(TypeDesc type, mdToken token)
         {
-            return new DelayLoadHelper(this, new TypeFixupSignature(
-                ReadyToRunFixupKind.READYTORUN_FIXUP_StaticBaseGC, type, GetTypeToken(token)));
+            return new DelayLoadHelperImport(
+                this,
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper,
+                new TypeFixupSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_StaticBaseGC, type, GetTypeToken(token)));
         }
 
         private ISymbolNode CreateNonGCStaticBaseHelper(TypeDesc type, mdToken token)
         {
-            return new DelayLoadHelper(this, new TypeFixupSignature(
-                ReadyToRunFixupKind.READYTORUN_FIXUP_StaticBaseNonGC, type, GetTypeToken(token)));
+            return new DelayLoadHelperImport(
+                this,
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper,
+                new TypeFixupSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_StaticBaseNonGC, type, GetTypeToken(token)));
         }
 
         private ISymbolNode CreateThreadStaticBaseHelper(TypeDesc type, mdToken token)
         {
-            ReadyToRunFixupKind fixupKind = (type.IsValueType
-                ? ReadyToRunFixupKind.READYTORUN_FIXUP_ThreadStaticBaseNonGC
-                : ReadyToRunFixupKind.READYTORUN_FIXUP_ThreadStaticBaseGC);
-            return new DelayLoadHelper(this, new TypeFixupSignature(fixupKind, type, GetTypeToken(token)));
+            ReadyToRunFixupKind fixupKind = ReadyToRunFixupKind.READYTORUN_FIXUP_ThreadStaticBaseNonGC;
+            return new DelayLoadHelperImport(
+                this,
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper,
+                new TypeFixupSignature(fixupKind, type, GetTypeToken(token)));
         }
 
         private mdToken GetTypeToken(mdToken token)
@@ -275,26 +298,30 @@ namespace ILCompiler.DependencyAnalysis
 
         private ISymbolNode CreateIsInstanceOfHelper(TypeDesc type, mdToken typeRefToken)
         {
-            return new DelayLoadHelperObj(this, new TypeFixupSignature(
-                ReadyToRunFixupKind.READYTORUN_FIXUP_IsInstanceOf, type, typeRefToken));
+            return new DelayLoadHelperImport(this, 
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper,
+                new TypeFixupSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_IsInstanceOf, type, typeRefToken));
         }
 
         private ISymbolNode CreateCastClassHelper(TypeDesc type, mdToken typeRefToken)
         {
-            return new DelayLoadHelperObj(this, new TypeFixupSignature(
-                ReadyToRunFixupKind.READYTORUN_FIXUP_ChkCast, type, typeRefToken));
+            return new DelayLoadHelperImport(this,
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper_Obj,
+                new TypeFixupSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_ChkCast, type, typeRefToken));
         }
 
         private ISymbolNode CreateTypeHandleHelper(TypeDesc type, mdToken typeRefToken)
         {
-            return new DelayLoadHelper(this, new TypeFixupSignature(
-                ReadyToRunFixupKind.READYTORUN_FIXUP_TypeHandle, type, typeRefToken));
+            return new PrecodeHelperImport(this,
+                new TypeFixupSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_TypeHandle, type, typeRefToken));
         }
 
-        private ISymbolNode CreateVirtualCallHelper(MethodDesc method, mdToken methodRefToken)
+        private ISymbolNode CreateVirtualCallHelper(MethodDesc method, mdToken methodToken)
         {
-            return new DelayLoadHelper(this, new MethodFixupSignature(
-                ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry_RefToken, method, methodRefToken));
+            return new DelayLoadHelperImport(
+                this,
+                ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper_Obj,
+                new MethodFixupSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry, method, methodToken));
         }
 
         Dictionary<ILCompiler.ReadyToRunHelper, ISymbolNode> _helperCache = new Dictionary<ILCompiler.ReadyToRunHelper, ISymbolNode>();
@@ -467,9 +494,9 @@ namespace ILCompiler.DependencyAnalysis
             MethodImports = new ImportSectionNode(
                 "MethodImports",
                 CorCompileImportType.CORCOMPILE_IMPORT_TYPE_EXTERNAL_METHOD,
-                CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_CODE,
+                CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_PCODE,
                 (byte)Target.PointerSize,
-                emitPrecode: false);
+                emitPrecode: true);
             ImportSectionsTable.AddEmbeddedObject(MethodImports);
 
             HelperImports = new ImportSectionNode(
@@ -479,6 +506,14 @@ namespace ILCompiler.DependencyAnalysis
                 (byte)Target.PointerSize,
                 emitPrecode: false);
             ImportSectionsTable.AddEmbeddedObject(HelperImports);
+
+            PrecodeImports = new ImportSectionNode(
+                "PrecodeImports",
+                CorCompileImportType.CORCOMPILE_IMPORT_TYPE_UNKNOWN,
+                CorCompileImportFlags.CORCOMPILE_IMPORT_FLAGS_PCODE,
+                (byte)Target.PointerSize,
+                emitPrecode: true);
+            ImportSectionsTable.AddEmbeddedObject(PrecodeImports);
 
             StringImports = new ImportSectionNode(
                 "StringImports",
@@ -493,6 +528,7 @@ namespace ILCompiler.DependencyAnalysis
             graph.AddRoot(EagerImports, "Eager imports are always generated");
             graph.AddRoot(MethodImports, "Method imports are always generated");
             graph.AddRoot(HelperImports, "Helper imports are always generated");
+            graph.AddRoot(PrecodeImports, "Precode imports are always generated");
             graph.AddRoot(StringImports, "String imports are always generated");
             graph.AddRoot(Header, "ReadyToRunHeader is always generated");
         }
@@ -520,7 +556,7 @@ namespace ILCompiler.DependencyAnalysis
             if (!_importMethods.TryGetValue(method, out methodImport))
             {
                 // First time we see a given external method - emit indirection cell and the import entry
-                ExternalMethodHelper indirectionCell = new ExternalMethodHelper(this, fixupKind, method, token, localMethod);
+                ExternalMethodImport indirectionCell = new ExternalMethodImport(this, fixupKind, method, token, localMethod);
                 _importMethods.Add(method, indirectionCell);
                 methodImport = indirectionCell;
             }

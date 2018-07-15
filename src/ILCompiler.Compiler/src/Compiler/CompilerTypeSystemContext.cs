@@ -20,7 +20,7 @@ namespace ILCompiler
 {
     public partial class CompilerTypeSystemContext : MetadataTypeSystemContext, IMetadataStringDecoderProvider
     {
-        private MetadataFieldLayoutAlgorithm _metadataFieldLayoutAlgorithm = new CompilerMetadataFieldLayoutAlgorithm();
+        private MetadataFieldLayoutAlgorithm _metadataFieldLayoutAlgorithm;
         private RuntimeDeterminedFieldLayoutAlgorithm _runtimeDeterminedFieldLayoutAlgorithm = new RuntimeDeterminedFieldLayoutAlgorithm();
         private VectorOfTFieldLayoutAlgorithm _vectorOfTFieldLayoutAlgorithm;
         private MetadataRuntimeInterfacesAlgorithm _metadataRuntimeInterfacesAlgorithm = new MetadataRuntimeInterfacesAlgorithm();
@@ -98,12 +98,14 @@ namespace ILCompiler
 
         private SharedGenericsMode _genericsMode;
         
-        public CompilerTypeSystemContext(TargetDetails details, SharedGenericsMode genericsMode)
+        public CompilerTypeSystemContext(TargetDetails details, SharedGenericsMode genericsMode, bool isReadyToRunCodegen)
             : base(details)
         {
             _genericsMode = genericsMode;
 
             _vectorOfTFieldLayoutAlgorithm = new VectorOfTFieldLayoutAlgorithm(_metadataFieldLayoutAlgorithm);
+
+            _metadataFieldLayoutAlgorithm = new CompilerMetadataFieldLayoutAlgorithm(isReadyToRunCodegen);
 
             GenericsConfig = new SharedGenericsConfiguration();
         }

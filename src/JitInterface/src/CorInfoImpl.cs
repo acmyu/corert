@@ -2231,14 +2231,7 @@ namespace Internal.JitInterface
             pResult.accessAllowed = CorInfoIsAccessAllowedResult.CORINFO_ACCESS_ALLOWED;
 
             if (!field.IsStatic || !field.HasRva)
-            {
                 pResult.offset = (uint)field.Offset.AsInt;
-                // HACKHACKHACK: for some reason EcmaType adds sizeof(IntPtr) to static field offsets
-                if (field.IsStatic)
-                {
-                    pResult.offset -= (uint)sizeof(IntPtr);
-                }
-            }
             else
                 pResult.offset = 0xBAADF00D;
 
@@ -3332,8 +3325,8 @@ namespace Internal.JitInterface
                 // move that assert to some place later though.
                 targetIsFatFunctionPointer = true;
             }
-            else if ((flags & CORINFO_CALLINFO_FLAGS.CORINFO_CALLINFO_LDFTN) == 0
-                && targetMethod.OwningType.IsInterface)
+            else if (((flags & CORINFO_CALLINFO_FLAGS.CORINFO_CALLINFO_LDFTN) == 0 && targetMethod.OwningType.IsInterface)
+                || !_compilation.EmitDirectVirtualCalls)
             {
                 pResult.kind = CORINFO_CALL_KIND.CORINFO_VIRTUALCALL_STUB;
 

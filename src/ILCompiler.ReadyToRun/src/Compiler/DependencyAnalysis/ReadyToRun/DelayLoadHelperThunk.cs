@@ -12,34 +12,31 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
     /// This node emits a thunk calling DelayLoad_Helper with a given instance signature
     /// to populate its indirection cell.
     /// </summary>
-    public class DelayLoadHelper : ObjectNode, ISymbolDefinitionNode
+    public class DelayLoadHelperThunk : ObjectNode, ISymbolDefinitionNode
     {
         private readonly ISymbolNode _helperCell;
-
-        private readonly Signature _instanceSignature;
 
         private readonly Import _instanceCell;
 
         private readonly ISymbolNode _moduleImport;
 
-        protected DelayLoadHelper(ReadyToRunHelper helperId, ReadyToRunCodegenNodeFactory factory, Signature instanceSignature)
+        protected DelayLoadHelperThunk(ReadyToRunHelper helperId, ReadyToRunCodegenNodeFactory factory, Import instanceCell)
         {
             _helperCell = factory.GetReadyToRunHelperCell(helperId);
-            _instanceSignature = instanceSignature;
-            _instanceCell = new Import(factory.HelperImports, instanceSignature);
+            _instanceCell = instanceCell;
             factory.HelperImports.AddImport(factory, _instanceCell);
             _moduleImport = factory.ModuleImport;
         }
 
-        public DelayLoadHelper(ReadyToRunCodegenNodeFactory factory, Signature instanceSignature)
-            : this(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper, factory, instanceSignature)
+        public DelayLoadHelperThunk(ReadyToRunCodegenNodeFactory factory, Import instanceCell)
+            : this(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper, factory, instanceCell)
         {
         }
 
         public void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
         {
             sb.Append("DelayLoadHelper->");
-            _instanceSignature.AppendMangledName(nameMangler, sb);
+            _instanceCell.AppendMangledName(nameMangler, sb);
         }
 
         protected override string GetName(NodeFactory factory)
@@ -108,10 +105,10 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         protected override int ClassCode => 433266948;
     }
 
-    public class DelayLoadHelperObj : DelayLoadHelper
+    public class DelayLoadHelperThunk_Obj : DelayLoadHelperThunk
     {
-        public DelayLoadHelperObj(ReadyToRunCodegenNodeFactory nodeFactory, Signature instanceSignature)
-            : base(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper_Obj, nodeFactory, instanceSignature)
+        public DelayLoadHelperThunk_Obj(ReadyToRunCodegenNodeFactory nodeFactory, Import instanceCell)
+            : base(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper_Obj, nodeFactory, instanceCell)
         {
         }
     }

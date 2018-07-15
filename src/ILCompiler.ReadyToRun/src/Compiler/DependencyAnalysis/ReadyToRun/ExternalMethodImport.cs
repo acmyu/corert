@@ -11,7 +11,7 @@ using Internal.TypeSystem;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
-    public class ExternalMethodHelper : DelayLoadHelper, IMethodNode
+    public class ExternalMethodImport : Import, IMethodNode
     {
         private readonly MethodDesc _methodDesc;
 
@@ -19,14 +19,15 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         private readonly MethodWithGCInfo _localMethod;
 
-        public ExternalMethodHelper(
+        public ExternalMethodImport(
             ReadyToRunCodegenNodeFactory factory,
             ReadyToRunFixupKind fixupKind,
             MethodDesc methodDesc,
             mdToken token,
             MethodWithGCInfo localMethod)
-            : base(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_MethodCall, factory, new MethodFixupSignature(fixupKind, methodDesc, token))
+            : base(factory.MethodImports, new MethodFixupSignature(fixupKind, methodDesc, token))
         {
+            factory.MethodImports.AddImport(factory, this);
             _methodDesc = methodDesc;
             _token = token;
             _localMethod = localMethod;
@@ -41,17 +42,17 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             throw new NotImplementedException();
         }
 
-        public override ObjectNode.ObjectData GetData(NodeFactory factory, bool relocsOnly)
+        public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
-            ObjectData data = base.GetData(factory, relocsOnly);
-            if (relocsOnly && _localMethod != null)
+            if (_localMethod == null)
             {
-                Relocation[] augmentedRelocs = new Relocation[data.Relocs.Length + 1];
-                Array.Copy(data.Relocs, 0, augmentedRelocs, 1, data.Relocs.Length);
-                augmentedRelocs[0] = new Relocation(RelocType.IMAGE_REL_BASED_ABSOLUTE, 0, _localMethod);
-                data = new ObjectData(data.Data, augmentedRelocs, data.Alignment, data.DefinedSymbols);
+                return base.GetStaticDependencies(factory);
             }
-            return data;
+            return new DependencyListEntry[] 
+            {
+                new DependencyListEntry(_localMethod, "Local method import"),
+                new DependencyListEntry(ImportSignature, "Method fixup signature"),
+            };
         }
     }
 }

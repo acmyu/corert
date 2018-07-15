@@ -43,6 +43,13 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             dataBuilder.EmitReloc(Target, RelocType.IMAGE_REL_BASED_ADDR32NB);
         }
 
+        public override void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
+        {
+            sb.Append("RVA_");
+            Target.AppendMangledName(nameMangler, sb);
+        }
+
+
         protected override int ClassCode => -66002498;
 
         public int Offset => OffsetFromBeginningOfArray;

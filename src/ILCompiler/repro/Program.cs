@@ -9,10 +9,10 @@ using System.Text;
 
 internal class Program
 {
-    [ThreadStatic]
+    //[ThreadStatic]
     private static string TextFileName = @"D:\git\corert\src\ILCompiler\repro\Program.cs";
 
-    [ThreadStatic]
+    //[ThreadStatic]
     private static int LineCount = 0;
 
     private static bool NewString()
@@ -108,9 +108,9 @@ internal class Program
     {
         Console.WriteLine($@"Dumping file: {TextFileName}");
         string textFile = File.ReadAllText(TextFileName);
-        if (textFile.Length > 1000)
+        if (textFile.Length > 100)
         {
-            textFile = textFile.Substring(0, 1000) + "...";
+            textFile = textFile.Substring(0, 100) + "...";
         }
         Console.WriteLine(textFile);
 
@@ -119,26 +119,33 @@ internal class Program
 
     private static bool StreamReaderReadLine()
     {
-        using (StreamReader reader = new StreamReader(TextFileName, System.Text.Encoding.UTF8))
+        Console.WriteLine($@"Dumping file: {TextFileName}");
+        // TODO: Dispose using (
+        StreamReader reader = new StreamReader(TextFileName, System.Text.Encoding.UTF8);
         {
-            for (; ; )
-            {
-                string line = reader.ReadLine();
-                if (line == null)
-                {
-                    break;
-                }
-                LineCount++;
-                Console.WriteLine($@"{LineCount}: {line}");
-            }
-            return LineCount > 0;
+            Console.WriteLine("StreamReader created ...");
+            string line1 = reader.ReadLine();
+            Console.WriteLine($@"Line 1: {line1}");
+            string line2 = reader.ReadLine();
+            Console.WriteLine($@"Line 2: {line2}");
+            return line2 != null;
         }
     }
 
+    /*
     private static bool ConstructListOfInt()
     {
         List<int> listOfInt = new List<int>();
-        return listOfInt.Count == 0;
+        if (listOfInt.Count == 0)
+        {
+            Console.WriteLine("Successfully constructed empty List<int>!");
+            return true;
+        }
+        else
+        {
+            Console.WriteLine($@"Invalid element count in List<int>: {listOfInt.Count}");
+            return false;
+        }
     }
 
     private static bool ManipulateListOfInt()
@@ -196,9 +203,20 @@ internal class Program
 
     public static int Main()
     {
-        Console.WriteLine($@"TextFileName (1): {TextFileName}");
-        Console.WriteLine($@"TextFileName (2): {TextFileName}");
+        /*
+        StreamReader reader = new StreamReader(TextFileName, System.Text.Encoding.UTF8);
 
+        Console.WriteLine("StreamReader created ...");
+        string line1 = reader.ReadLine();
+        Console.WriteLine($@"Line 1: {line1}");
+
+        MemoryStream memoryStream = new MemoryStream();
+        memoryStream.WriteByte(10);
+
+        return o != null ? 100 : 101;
+        */
+
+        //*
         const int Success = 1;
         const int Failure = 0;
 
@@ -207,21 +225,24 @@ internal class Program
         TestCounts[NewString() ? Success : Failure]++;
         TestCounts[WriteLine() ? Success : Failure]++;
         TestCounts[IsInstanceOf() ? Success : Failure]++;
-        // TestCounts[IsInstanceOfValueType() ? Success : Failure]++;
+        TestCounts[IsInstanceOfValueType() ? Success : Failure]++;
         TestCounts[ChkCast() ? Success : Failure]++;
-        // TestCounts[ChkCastValueType() ? Success : Failure]++;
+        TestCounts[ChkCastValueType() ? Success : Failure]++;
         // TestCounts[BoxUnbox() ? Success : Failure]++;
-        // TestCounts[TypeHandle() ? Success : Failure]++;
-        // TestCounts[RuntimeTypeHandle() ? Success : Failure]++;
+        TestCounts[TypeHandle() ? Success : Failure]++;
+        TestCounts[RuntimeTypeHandle() ? Success : Failure]++;
         TestCounts[ReadAllText() ? Success : Failure]++;
-        // TestCounts[StreamReaderReadLine() ? Success : Failure]++;
+        TestCounts[StreamReaderReadLine() ? Success : Failure]++;
+        //*/
+
         /*
         TestCounts[ConstructListOfInt() ? Success : Failure]++;
         TestCounts[ManipulateListOfInt() ? Success : Failure]++;
         TestCounts[ConstructListOfString() ? Success : Failure]++;
         TestCounts[ManipulateListOfString() ? Success : Failure]++;
-        */
+        //*/
 
+        //*
         if (TestCounts[Failure] == 0)
         {
             Console.WriteLine($@"All {TestCounts[Success]} tests pass!");
@@ -232,6 +253,7 @@ internal class Program
             Console.Error.WriteLine($@"{TestCounts[Failure]} test failed, {TestCounts[Success]} suceeded.");
             return 1;
         }
+        //*/
     }
     //*/
 
@@ -268,14 +290,14 @@ internal class Program
         // JIT: READYTORUN_FIXUP_MethodHandle = 0x11,
         // JIT: READYTORUN_FIXUP_FieldHandle = 0x12,
 
-        // UNNEEDED: READYTORUN_FIXUP_MethodEntry = 0x13, // In CoreRT, we always refer to external methods by RefTokens
-        // UNNEEDED: READYTORUN_FIXUP_MethodEntry_DefToken = 0x14, // In CoreRT, we always refer to external methods by RefTokens
+        // UNNEEDED: READYTORUN_FIXUP_MethodEntry = 0x13, // In CoreRT, we always refer to external methods by Def/RefTokens
+        // DONE: READYTORUN_FIXUP_MethodEntry_DefToken = 0x14,
         // DONE: READYTORUN_FIXUP_MethodEntry_RefToken = 0x15, /* Smaller version of MethodEntry - method is ref token */
 
-        // UNNEEDED: READYTORUN_FIXUP_VirtualEntry = 0x16, // In CoreRT, we always refer to external methods by RefTokens
-        // UNNEEDED: READYTORUN_FIXUP_VirtualEntry_DefToken = 0x17, // In CoreRT, we always refer to external methods by RefTokens
-        // DONE: READYTORUN_FIXUP_VirtualEntry_RefToken = 0x18, /* Smaller version of VirtualEntry - method is ref token */
-        // UNNEEDED: EADYTORUN_FIXUP_VirtualEntry_Slot = 0x19, // In CoreRT, we always refer to external methods by RefTokens
+        // UNNEEDED?: READYTORUN_FIXUP_VirtualEntry = 0x16,
+        // UNNEEDED?: READYTORUN_FIXUP_VirtualEntry_DefToken = 0x17,
+        // UNNEEDED?: READYTORUN_FIXUP_VirtualEntry_RefToken = 0x18, /* Smaller version of VirtualEntry - method is ref token */
+        // UNNEEDED: EADYTORUN_FIXUP_VirtualEntry_Slot = 0x19, // In CoreRT, we always refer to external methods by Def/RefTokens
 
         READYTORUN_FIXUP_Helper = 0x1A, /* Helper */
         // DONE: READYTORUN_FIXUP_StringHandle = 0x1B, /* String handle */
@@ -325,7 +347,7 @@ internal class Program
         // DONE: READYTORUN_HELPER_DelayLoad_MethodCall = 0x08,
 
         // DONE: READYTORUN_HELPER_DelayLoad_Helper = 0x10,
-        READYTORUN_HELPER_DelayLoad_Helper_Obj = 0x11,
+        // DONE: READYTORUN_HELPER_DelayLoad_Helper_Obj = 0x11,
         READYTORUN_HELPER_DelayLoad_Helper_ObjObj = 0x12,
 
         // JIT helpers
@@ -340,7 +362,7 @@ internal class Program
         READYTORUN_HELPER_ThrowDivZero = 0x26,
 
         // Write barriers
-        READYTORUN_HELPER_WriteBarrier = 0x30,
+        // DONE: READYTORUN_HELPER_WriteBarrier = 0x30,
         READYTORUN_HELPER_CheckedWriteBarrier = 0x31,
         READYTORUN_HELPER_ByRefWriteBarrier = 0x32,
 
