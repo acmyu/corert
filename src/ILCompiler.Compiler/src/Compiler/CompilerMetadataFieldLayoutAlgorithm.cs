@@ -11,17 +11,31 @@ namespace ILCompiler
 {
     internal class CompilerMetadataFieldLayoutAlgorithm : MetadataFieldLayoutAlgorithm
     {
-        private readonly bool _isReadyToRunCodegen;
+        private const int DomainLocalModuleDataBlobOffset = 0x30;
 
-        public CompilerMetadataFieldLayoutAlgorithm(bool isReadyToRunCodegen)
+        private const int ThreadLocalModuleDataBlobOffset = 0x18;
+
+        private bool _isReadyToRunCodegen;
+
+        private LayoutInt _initialNonGcStaticsOffset;
+
+        public CompilerMetadataFieldLayoutAlgorithm()
         {
-            _isReadyToRunCodegen = isReadyToRunCodegen;
+            _isReadyToRunCodegen = false;
+            _initialNonGcStaticsOffset = LayoutInt.Zero;
+        }
+
+        public void SetReadyToRunMode(int numberOfTypesInModule)
+        {
+            _isReadyToRunCodegen = true;
+            _initialNonGcStaticsOffset = new LayoutInt(DomainLocalModuleDataBlobOffset + numberOfTypesInModule);
         }
 
         protected override void PrepareRuntimeSpecificStaticFieldLayout(TypeSystemContext context, ref ComputedStaticFieldLayout layout)
         {
             if (_isReadyToRunCodegen)
             {
+                layout.NonGcStatics.Size = _initialNonGcStaticsOffset;
                 layout.GcStatics.Size = LayoutInt.Zero;
                 layout.ThreadStatics.Size = LayoutInt.Zero;
             }
@@ -35,6 +49,11 @@ namespace ILCompiler
 
         protected override void FinalizeRuntimeSpecificStaticFieldLayout(TypeSystemContext context, ref ComputedStaticFieldLayout layout)
         {
+            if (layout.NonGcStatics.Size == _initialNonGcStaticsOffset)
+            {
+                // No non-GC statics, set statics size to 0
+                layout.NonGcStatics.Size = LayoutInt.Zero;
+            }
             // If the size of GCStatics is equal to the size set in PrepareRuntimeSpecificStaticFieldLayout, we
             // don't have any GC statics
             if (layout.GcStatics.Size == context.Target.LayoutPointerSize)
