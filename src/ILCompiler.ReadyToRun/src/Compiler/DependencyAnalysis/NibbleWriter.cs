@@ -149,7 +149,7 @@ namespace ILCompiler.DependencyAnalysis
 
             if (_nibbleCount > NibbleCountInSmallBuffer)
             {
-                int startOffset = NibbleCountInSmallBuffer >> 1;
+                int startOffset = ByteCountInSmallBuffer;
                 if (_largeBuffer != null)
                 {
                     foreach (Blob blob in _largeBuffer.GetBlobs())
