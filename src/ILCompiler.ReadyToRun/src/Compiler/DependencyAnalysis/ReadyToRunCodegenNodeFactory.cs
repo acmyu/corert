@@ -26,20 +26,28 @@ namespace ILCompiler.DependencyAnalysis
 
         private Dictionary<mdToken, ISymbolNode> _importStrings;
 
-        public ReadyToRunCodegenNodeFactory(CompilerTypeSystemContext context, CompilationModuleGroup compilationModuleGroup, MetadataManager metadataManager,
-            InteropStubManager interopStubManager, NameMangler nameMangler, VTableSliceProvider vtableSliceProvider, DictionaryLayoutProvider dictionaryLayoutProvider)
-            : base(context, 
-                  compilationModuleGroup, 
-                  metadataManager, 
-                  interopStubManager, 
-                  nameMangler, 
-                  new LazyGenericsDisabledPolicy(), 
-                  vtableSliceProvider, 
-                  dictionaryLayoutProvider, 
+        public ReadyToRunCodegenNodeFactory(
+            CompilerTypeSystemContext context, 
+            CompilationModuleGroup compilationModuleGroup,
+            MetadataManager metadataManager,
+            InteropStubManager interopStubManager, 
+            NameMangler nameMangler, 
+            VTableSliceProvider vtableSliceProvider, 
+            DictionaryLayoutProvider dictionaryLayoutProvider,
+            EcmaModule inputModule)
+            : base(context,
+                  compilationModuleGroup,
+                  metadataManager,
+                  interopStubManager,
+                  nameMangler,
+                  new LazyGenericsDisabledPolicy(),
+                  vtableSliceProvider,
+                  dictionaryLayoutProvider,
                   new ImportedNodeProviderThrowing())
         {
             _importMethods = new Dictionary<MethodDesc, IMethodNode>();
             _importStrings = new Dictionary<mdToken, ISymbolNode>();
+            _inputModule = inputModule;
         }
 
         public PEReader PEReader;
@@ -69,6 +77,27 @@ namespace ILCompiler.DependencyAnalysis
         public ImportSectionNode HelperImports;
 
         public ImportSectionNode PrecodeImports;
+
+        /// <summary>
+        /// TODO: this will need changing when compiling multiple files. Ideally this
+        /// should be switched every time we compile a method in a particular module
+        /// because this is what provides context for reference token resolution.
+        /// </summary>
+        EcmaModule _inputModule;
+
+        SignatureContext _signatureContext;
+
+        public SignatureContext SignatureContext
+        {
+            get
+            {
+                if (_signatureContext == null)
+                {
+                    _signatureContext = new SignatureContext(this, _inputModule);
+                }
+                return _signatureContext;
+            }
+        }
 
         protected override IMethodNode CreateMethodEntrypointNode(MethodDesc method, mdToken token)
         {

@@ -30,33 +30,30 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public override ObjectData GetData(NodeFactory factory, bool relocsOnly = false)
         {
             ReadyToRunCodegenNodeFactory r2rFactory = (ReadyToRunCodegenNodeFactory)factory;
-            ObjectDataBuilder dataBuilder = new ObjectDataBuilder();
+            ObjectDataSignatureBuilder dataBuilder = new ObjectDataSignatureBuilder();
             dataBuilder.AddSymbol(this);
 
             dataBuilder.EmitByte((byte)_fixupKind);
-            SignatureBuilder.MethodSigKind sigKind;
             switch (_fixupKind)
             {
                 case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry:
                 case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry:
-                    sigKind = SignatureBuilder.MethodSigKind.General;
+                    dataBuilder.EmitMethodSignature(_methodDesc, _methodToken, r2rFactory.SignatureContext);
                     break;
 
                 case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_DefToken:
                 // case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry_DefToken:
-                    sigKind = SignatureBuilder.MethodSigKind.DefToken;
+                    dataBuilder.EmitMethodDefToken(_methodToken);
                     break;
 
                 case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_RefToken:
                 // case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry_RefToken:
-                    sigKind = SignatureBuilder.MethodSigKind.RefToken;
+                    dataBuilder.EmitMethodRefToken(_methodToken);
                     break;
 
                 default:
                     throw new NotImplementedException();
             }
-
-            SignatureBuilder.EmitMethod(ref dataBuilder, _methodDesc, _methodToken, sigKind);
 
             return dataBuilder.ToObjectData();
         }

@@ -21,11 +21,11 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public override ObjectData GetData(NodeFactory factory, bool relocsOnly = false)
         {
             ReadyToRunCodegenNodeFactory r2rFactory = (ReadyToRunCodegenNodeFactory)factory;
-            ObjectDataBuilder dataBuilder = new ObjectDataBuilder();
+            ObjectDataSignatureBuilder dataBuilder = new ObjectDataSignatureBuilder();
             dataBuilder.AddSymbol(this);
 
             dataBuilder.EmitByte((byte)ReadyToRunFixupKind.READYTORUN_FIXUP_StringHandle);
-            SignatureBuilder.EmitUInt(ref dataBuilder, (uint)SignatureBuilder.RidFromToken(_token));
+            dataBuilder.EmitUInt(SignatureBuilder.RidFromToken(_token));
 
             return dataBuilder.ToObjectData();
         }

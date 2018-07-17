@@ -9,12 +9,13 @@ using System.Text;
 
 internal class Program
 {
-    //[ThreadStatic]
+    // [ThreadStatic]
     private static string TextFileName = @"C:\Windows\Microsoft.NET\Framework\v4.0.30319\clientexclusionlist.xml";
 
     //[ThreadStatic]
-    private static int LineCount = 0;
+    private static int LineCount = 0x12345678;
 
+    //*
     private static bool NewString()
     {
         string s = new string('x', 10);
@@ -26,7 +27,9 @@ internal class Program
         Console.WriteLine("Hello CoreRT R2R running on CoreCLR!");
         return true;
     }
+    //*/
 
+    //*
     private static bool IsInstanceOf()
     {
         object obj = TextFileName;
@@ -47,7 +50,7 @@ internal class Program
         object obj = LineCount;
         if (obj is int i)
         {
-            Console.WriteLine($@"Object is int: {i}");
+            Console.WriteLine($@"Object {obj:X8} is int: {i:X8}");
             return true;
         }
         else
@@ -56,7 +59,9 @@ internal class Program
             return false;
         }
     }
+    //*/
 
+    //*
     private static bool ChkCast()
     {
         object obj = TextFileName;
@@ -69,28 +74,43 @@ internal class Program
     {
         object obj = LineCount;
         int objInt = (int)obj;
-        Console.WriteLine($@"Int: {objInt}");
+        Console.WriteLine($@"Int: {objInt:X8}");
         return objInt == LineCount;
     }
+    //*/
 
+    //*
     private static bool BoxUnbox()
     {
         bool success = true;
         object intAsObject = LineCount;
-        if ((int)intAsObject != LineCount)
+        int unboxedInt = (int)intAsObject;
+        if (unboxedInt == LineCount)
         {
-            Console.Error.WriteLine($@"unbox != box: original {LineCount}, boxed {intAsObject}, unboxed {(int)intAsObject}");
+            Console.WriteLine($@"unbox == box: original {LineCount}, boxed {intAsObject:X8}, unboxed {unboxedInt:X8}");
+        }
+        else
+        {
+            Console.Error.WriteLine($@"unbox != box: original {LineCount}, boxed {intAsObject:X8}, unboxed {unboxedInt:X8}");
             success = false;
         }
         int? nullableInt = LineCount;
         object nullableIntAsObject = nullableInt;
-        if ((int?)nullableIntAsObject != nullableInt)
+        int? unboxedNullable = (int?)nullableIntAsObject;
+        if (unboxedNullable == nullableInt)
         {
-            Console.Error.WriteLine($@"unbox_nullable != box_nullable: original {nullableInt}, boxed {nullableIntAsObject}, unboxed {(int?)nullableIntAsObject}");
+            Console.WriteLine($@"unbox_nullable == box_nullable: original {nullableInt:X8}, boxed {nullableIntAsObject:X8}, unboxed {unboxedNullable:X8}");
+        }
+        else
+        {
+            Console.Error.WriteLine($@"unbox_nullable != box_nullable: original {nullableInt:X8}, boxed {nullableIntAsObject:X8}, unboxed {unboxedNullable:X8}");
+            success = false;
         }
         return success;
     }
+    //*/
 
+    //*
     private static bool TypeHandle()
     {
         Console.WriteLine(TextFileName.GetType().ToString());
@@ -131,8 +151,9 @@ internal class Program
             return line2 != null;
         }
     }
+    //*/
 
-    /*
+    //*
     private static bool ConstructListOfInt()
     {
         List<int> listOfInt = new List<int>();
@@ -147,7 +168,9 @@ internal class Program
             return false;
         }
     }
+    //*/
 
+    //*
     private static bool ManipulateListOfInt()
     {
         List<int> listOfInt = new List<int>();
@@ -216,31 +239,29 @@ internal class Program
         return o != null ? 100 : 101;
         */
 
-        //*
         const int Success = 1;
         const int Failure = 0;
 
         int[] TestCounts = new int[2];
 
+        //*
         TestCounts[NewString() ? Success : Failure]++;
         TestCounts[WriteLine() ? Success : Failure]++;
         TestCounts[IsInstanceOf() ? Success : Failure]++;
         TestCounts[IsInstanceOfValueType() ? Success : Failure]++;
         TestCounts[ChkCast() ? Success : Failure]++;
         TestCounts[ChkCastValueType() ? Success : Failure]++;
-        // TestCounts[BoxUnbox() ? Success : Failure]++;
+        TestCounts[BoxUnbox() ? Success : Failure]++;
         TestCounts[TypeHandle() ? Success : Failure]++;
         TestCounts[RuntimeTypeHandle() ? Success : Failure]++;
         TestCounts[ReadAllText() ? Success : Failure]++;
         TestCounts[StreamReaderReadLine() ? Success : Failure]++;
         //*/
 
-        /*
         TestCounts[ConstructListOfInt() ? Success : Failure]++;
         TestCounts[ManipulateListOfInt() ? Success : Failure]++;
         TestCounts[ConstructListOfString() ? Success : Failure]++;
         TestCounts[ManipulateListOfString() ? Success : Failure]++;
-        //*/
 
         //*
         if (TestCounts[Failure] == 0)

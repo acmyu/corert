@@ -2,43 +2,53 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
+using Debug = System.Diagnostics.Debug;
+using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
+
 using Internal.Runtime;
 using Internal.TypeSystem;
+using Internal.TypeSystem.Ecma;
 using Internal.JitInterface;
-using Debug = System.Diagnostics.Debug;
+using System.Collections.Immutable;
 
 namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
-    public static class SignatureBuilder
+    public abstract class SignatureBuilder
     {
-        public enum MethodSigKind
+        public abstract void EmitByte(byte data);
+
+        public void EmitBytes(byte[] data)
         {
-            General,
-            DefToken,
-            RefToken,
+            foreach (byte b in data)
+            {
+                EmitByte(b);
+            }
         }
 
-        public static void EmitUInt(ref ObjectDataBuilder dataBuilder, uint data)
+        public void EmitUInt(uint data)
         {
             if (data <= 0x7F)
             {
-                dataBuilder.EmitByte((byte)data);
+                EmitByte((byte)data);
                 return;
             }
 
             if (data <= 0x3FFF)
             {
-                dataBuilder.EmitByte((byte)((data >> 8) | 0x80));
-                dataBuilder.EmitByte((byte)(data & 0xFF));
+                EmitByte((byte)((data >> 8) | 0x80));
+                EmitByte((byte)(data & 0xFF));
                 return;
             }
 
             if (data <= 0x1FFFFFFF)
             {
-                dataBuilder.EmitByte((byte)((data >> 24) | 0xC0));
-                dataBuilder.EmitByte((byte)((data >> 16) & 0xff));
-                dataBuilder.EmitByte((byte)((data >> 8) & 0xff));
-                dataBuilder.EmitByte((byte)(data & 0xff));
+                EmitByte((byte)((data >> 24) | 0xC0));
+                EmitByte((byte)((data >> 16) & 0xff));
+                EmitByte((byte)((data >> 8) & 0xff));
+                EmitByte((byte)(data & 0xff));
                 return;
             }
 
@@ -60,15 +70,15 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             return TypeFromToken((int)token);
         }
 
-        public static void EmitTokenRid(ref ObjectDataBuilder dataBuilder, mdToken token)
+        public void EmitTokenRid(mdToken token)
         {
-            EmitUInt(ref dataBuilder, (uint)RidFromToken(token));
+            EmitUInt((uint)RidFromToken(token));
         }
 
         // compress a token
         // The least significant bit of the first compress byte will indicate the token type.
         //
-        public static void EmitToken(ref ObjectDataBuilder dataBuilder, mdToken token)
+        public void EmitToken(mdToken token)
         {
             uint rid = RidFromToken(token);
             CorTokenType type = (CorTokenType)TypeFromToken(token);
@@ -108,7 +118,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                     throw new NotImplementedException();
             }
 
-            EmitUInt(ref dataBuilder, rid);
+            EmitUInt(rid);
         }
 
         private static class SignMask
@@ -121,7 +131,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         /// <summary>
         /// Compress a signed integer. The least significant bit of the first compressed byte will be the sign bit.
         /// </summary>
-        public static void EmitInt(ref ObjectDataBuilder dataBuilder, int data)
+        public void EmitInt(int data)
         {
             uint isSigned = (data < 0 ? 1u : 0u);
             uint udata = unchecked((uint)data);
@@ -133,7 +143,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             {
                 udata = ((udata & ~SignMask.ONEBYTE) << 1 | isSigned);
                 Debug.Assert(udata <= 0x7f);
-                dataBuilder.EmitByte((byte)udata);
+                EmitByte((byte)udata);
                 return;
             }
 
@@ -141,8 +151,8 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             {
                 udata = ((udata & ~SignMask.TWOBYTE) << 1 | isSigned);
                 Debug.Assert(udata <= 0x3fff);
-                dataBuilder.EmitByte((byte)((udata >> 8) | 0x80));
-                dataBuilder.EmitByte((byte)(udata & 0xff));
+                EmitByte((byte)((udata >> 8) | 0x80));
+                EmitByte((byte)(udata & 0xff));
                 return;
             }
 
@@ -150,10 +160,10 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             {
                 udata = ((udata & ~SignMask.FOURBYTE) << 1 | isSigned);
                 Debug.Assert(udata <= 0x1FFFFFFF);
-                dataBuilder.EmitByte((byte)((udata >> 24) | 0xC0));
-                dataBuilder.EmitByte((byte)((udata >> 16) & 0xff));
-                dataBuilder.EmitByte((byte)((udata >> 8) & 0xff));
-                dataBuilder.EmitByte((byte)(udata & 0xff));
+                EmitByte((byte)((udata >> 24) | 0xC0));
+                EmitByte((byte)((udata >> 16) & 0xff));
+                EmitByte((byte)((udata >> 8) & 0xff));
+                EmitByte((byte)(udata & 0xff));
                 return;
             }
 
@@ -161,18 +171,23 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             throw new NotImplementedException();
         }
 
-
         /// <summary>
         /// Compress a CorElementType into a single byte.
         /// </summary>
         /// <param name="elementType">COR element type to compress</param>
-        internal static void EmitElementType(ref ObjectDataBuilder dataBuilder, CorElementType elementType)
+        internal void EmitElementType(CorElementType elementType)
         {
-            dataBuilder.EmitByte((byte)elementType);
+            EmitByte((byte)elementType);
         }
 
-        public static void EmitType(ref ObjectDataBuilder dataBuilder, TypeDesc typeDesc, mdToken typeToken)
+        public void EmitTypeSignature(TypeDesc typeDesc, mdToken token, SignatureContext context)
         {
+            if (typeDesc.HasInstantiation)
+            {
+                EmitTypeSpecification(token, context);
+                return;
+            }
+
             CorElementType elementType;
             if (typeDesc.IsPrimitive)
             {
@@ -242,22 +257,14 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                         throw new NotImplementedException();
                 }
 
-                dataBuilder.EmitByte((byte)elementType);
+                EmitByte((byte)elementType);
                 return;
             }
-
-            /*
-            if (typeDesc.IsString)
-            {
-                dataBuilder.EmitByte((byte)CorElementType.ELEMENT_TYPE_STRING);
-                return;
-            }
-            */
 
             if (typeDesc is ArrayType arrayType)
             {
-                dataBuilder.EmitByte((byte)CorElementType.ELEMENT_TYPE_SZARRAY);
-                EmitType(ref dataBuilder, arrayType.ElementType, typeToken);
+                EmitByte((byte)CorElementType.ELEMENT_TYPE_SZARRAY);
+                EmitTypeSignature(arrayType.ElementType, token, context);
                 return;
             }
 
@@ -270,52 +277,284 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                 elementType = CorElementType.ELEMENT_TYPE_CLASS;
             }
 
-            dataBuilder.EmitByte((byte)elementType);
-            SignatureBuilder.EmitToken(ref dataBuilder, typeToken);
-        }
+            EmitElementType(elementType);
 
-        public static void EmitMethod(ref ObjectDataBuilder builder, MethodDesc methodDesc, mdToken methodToken, MethodSigKind methodSig)
-        {
-            switch (methodSig)
+            switch (TypeFromToken(token))
             {
-                case MethodSigKind.General:
-                    switch (TypeFromToken(methodToken))
-                    {
-                        case CorTokenType.mdtMemberRef:
-                            EmitUInt(ref builder, (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MemberRefToken);
-                            EmitMethodRefToken(ref builder, methodDesc, methodToken);
-                            break;
+                case CorTokenType.mdtTypeDef:
+                case CorTokenType.mdtTypeRef:
+                case CorTokenType.mdtTypeSpec:
+                    EmitToken(token);
+                    return;
 
-                        case CorTokenType.mdtMethodDef:
-                            EmitUInt(ref builder, (uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_None);
-                            EmitMethodDefToken(ref builder, methodDesc, methodToken);
-                            break;
-
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    break;
-
-                case MethodSigKind.DefToken:
-                    EmitMethodDefToken(ref builder, methodDesc, methodToken);
-                    break;
-
-                case MethodSigKind.RefToken:
-                    EmitMethodRefToken(ref builder, methodDesc, methodToken);
-                    break;
+                default:
+                    throw new NotImplementedException();
             }
         }
 
-        private static void EmitMethodDefToken(ref ObjectDataBuilder builder, MethodDesc methodDesc, mdToken methodDefToken)
+        private void EmitTypeSpecification(mdToken token, SignatureContext context)
         {
-            Debug.Assert(TypeFromToken(methodDefToken) == CorTokenType.mdtMethodDef);
-            EmitUInt(ref builder, RidFromToken(methodDefToken));
+            Debug.Assert(TypeFromToken(token) == CorTokenType.mdtTypeSpec);
+            TypeSpecification typeSpec = context.MetadataReader.GetTypeSpecification((TypeSpecificationHandle)MetadataTokens.Handle((int)token));
+            BlobReader signatureReader = context.MetadataReader.GetBlobReader(typeSpec.Signature);
+            SignatureDecoder<byte[], SignatureContext> decoder = new SignatureDecoder<byte[], SignatureContext>(context, context.MetadataReader, context);
+            EmitBytes(decoder.DecodeType(ref signatureReader, allowTypeSpecifications: true));
         }
 
-        private static void EmitMethodRefToken(ref ObjectDataBuilder builder, MethodDesc methodDesc, mdToken memberRefToken)
+        public void EmitMethodSignature(MethodDesc method, mdToken token, SignatureContext context)
+        {
+            switch (TypeFromToken(token))
+            {
+                case CorTokenType.mdtMethodDef:
+                    EmitUInt((uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_None);
+                    EmitMethodDefToken(token);
+                    break;
+
+                case CorTokenType.mdtMemberRef:
+                    EmitUInt((uint)ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MemberRefToken);
+                    EmitMethodRefToken(token);
+                    break;
+
+                case CorTokenType.mdtMethodSpec:
+                    throw new NotImplementedException();
+
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        public void EmitMethodDefToken(mdToken methodDefToken)
+        {
+            Debug.Assert(TypeFromToken(methodDefToken) == CorTokenType.mdtMethodDef);
+            EmitUInt(RidFromToken(methodDefToken));
+        }
+
+        public void EmitMethodRefToken(mdToken memberRefToken)
         {
             Debug.Assert(TypeFromToken(memberRefToken) == CorTokenType.mdtMemberRef);
-            EmitUInt(ref builder, RidFromToken(memberRefToken));
+            EmitUInt(RidFromToken(memberRefToken));
+        }
+    }
+
+    public class ObjectDataSignatureBuilder : SignatureBuilder
+    {
+        private ObjectDataBuilder _builder;
+
+        public ObjectDataSignatureBuilder()
+        {
+            _builder = new ObjectDataBuilder();
+        }
+
+        public void AddSymbol(ISymbolDefinitionNode symbol)
+        {
+            _builder.AddSymbol(symbol);
+        }
+
+        public override void EmitByte(byte data)
+        {
+            _builder.EmitByte(data);
+        }
+
+        public ObjectNode.ObjectData ToObjectData()
+        {
+            return _builder.ToObjectData();
+        }
+    }
+
+    internal class ArraySignatureBuilder : SignatureBuilder
+    {
+        private ArrayBuilder<byte> _builder;
+
+        public ArraySignatureBuilder()
+        {
+            _builder = new ArrayBuilder<byte>();
+        }
+
+        public override void EmitByte(byte data)
+        {
+            _builder.Add(data);
+        }
+
+        public byte[] ToArray()
+        {
+            return _builder.ToArray();
+        }
+    }
+
+    public class SignatureContext : ISignatureTypeProvider<byte[], SignatureContext>
+    {
+        private readonly ReadyToRunCodegenNodeFactory _nodeFactory;
+
+        private readonly EcmaModule _contextModule;
+
+        public SignatureContext(ReadyToRunCodegenNodeFactory nodeFactory, EcmaModule contextModule)
+        {
+            _nodeFactory = nodeFactory;
+            _contextModule = contextModule;
+        }
+
+        public MetadataReader MetadataReader => _nodeFactory.PEReader.GetMetadataReader();
+
+        public byte[] GetArrayType(byte[] elementType, ArrayShape shape)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetByReferenceType(byte[] elementType)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetFunctionPointerType(MethodSignature<byte[]> signature)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetGenericInstantiation(byte[] genericType, ImmutableArray<byte[]> typeArguments)
+        {
+            ArraySignatureBuilder builder = new ArraySignatureBuilder();
+            builder.EmitElementType(CorElementType.ELEMENT_TYPE_GENERICINST);
+            builder.EmitBytes(genericType);
+            builder.EmitUInt((uint)typeArguments.Length);
+            foreach (byte[] typeArgSignature in typeArguments)
+            {
+                builder.EmitBytes(typeArgSignature);
+            }
+            return builder.ToArray();
+        }
+
+        public byte[] GetGenericMethodParameter(SignatureContext genericContext, int index)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetGenericTypeParameter(SignatureContext genericContext, int index)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetModifiedType(byte[] modifier, byte[] unmodifiedType, bool isRequired)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetPinnedType(byte[] elementType)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetPointerType(byte[] elementType)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetPrimitiveType(PrimitiveTypeCode typeCode)
+        {
+            CorElementType elementType;
+            switch (typeCode)
+            {
+                case PrimitiveTypeCode.Void:
+                    elementType = CorElementType.ELEMENT_TYPE_VOID;
+                    break;
+
+                case PrimitiveTypeCode.Boolean:
+                    elementType = CorElementType.ELEMENT_TYPE_BOOLEAN;
+                    break;
+
+                case PrimitiveTypeCode.Char:
+                    elementType = CorElementType.ELEMENT_TYPE_CHAR;
+                    break;
+
+                case PrimitiveTypeCode.SByte:
+                    elementType = CorElementType.ELEMENT_TYPE_I1;
+                    break;
+
+                case PrimitiveTypeCode.Byte:
+                    elementType = CorElementType.ELEMENT_TYPE_U1;
+                    break;
+
+                case PrimitiveTypeCode.Int16:
+                    elementType = CorElementType.ELEMENT_TYPE_I2;
+                    break;
+
+                case PrimitiveTypeCode.UInt16:
+                    elementType = CorElementType.ELEMENT_TYPE_U2;
+                    break;
+
+                case PrimitiveTypeCode.Int32:
+                    elementType = CorElementType.ELEMENT_TYPE_I4;
+                    break;
+
+                case PrimitiveTypeCode.UInt32:
+                    elementType = CorElementType.ELEMENT_TYPE_U4;
+                    break;
+
+                case PrimitiveTypeCode.Int64:
+                    elementType = CorElementType.ELEMENT_TYPE_I8;
+                    break;
+
+                case PrimitiveTypeCode.UInt64:
+                    elementType = CorElementType.ELEMENT_TYPE_U8;
+                    break;
+
+                case PrimitiveTypeCode.Single:
+                    elementType = CorElementType.ELEMENT_TYPE_R4;
+                    break;
+
+                case PrimitiveTypeCode.Double:
+                    elementType = CorElementType.ELEMENT_TYPE_R8;
+                    break;
+
+                case PrimitiveTypeCode.String:
+                    elementType = CorElementType.ELEMENT_TYPE_STRING;
+                    break;
+
+                case PrimitiveTypeCode.TypedReference:
+                    elementType = CorElementType.ELEMENT_TYPE_TYPEDBYREF;
+                    break;
+
+                case PrimitiveTypeCode.IntPtr:
+                    elementType = CorElementType.ELEMENT_TYPE_I;
+                    break;
+
+                case PrimitiveTypeCode.UIntPtr:
+                    elementType = CorElementType.ELEMENT_TYPE_U;
+                    break;
+
+                case PrimitiveTypeCode.Object:
+                    elementType = CorElementType.ELEMENT_TYPE_OBJECT;
+                    break;
+
+                default:
+                    throw new NotImplementedException();
+            }
+
+            return new byte[] { (byte)elementType };
+        }
+
+        public byte[] GetSZArrayType(byte[] elementType)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetTypeFromDefinition(MetadataReader reader, TypeDefinitionHandle handle, byte rawTypeKind)
+        {
+            throw new NotImplementedException();
+        }
+
+        public byte[] GetTypeFromReference(MetadataReader reader, TypeReferenceHandle handle, byte rawTypeKind)
+        {
+            ArraySignatureBuilder refBuilder = new ArraySignatureBuilder();
+            TypeDesc type = (TypeDesc)_contextModule.GetObject(handle);
+
+            refBuilder.EmitElementType(type.IsValueType ? CorElementType.ELEMENT_TYPE_VALUETYPE : CorElementType.ELEMENT_TYPE_CLASS);
+            refBuilder.EmitToken((mdToken)MetadataTokens.GetToken(handle));
+            return refBuilder.ToArray();
+        }
+
+        public byte[] GetTypeFromSpecification(MetadataReader reader, SignatureContext genericContext, TypeSpecificationHandle handle, byte rawTypeKind)
+        {
+            throw new NotImplementedException();
         }
     }
 }
