@@ -741,7 +741,13 @@ namespace ILCompiler.DependencyAnalysis
         }
 
         private NodeCache<MethodDesc, ISortableSymbolNode> _methodGenericDictionaries;
-        public ISortableSymbolNode MethodGenericDictionary(MethodDesc method)
+
+        public virtual ISortableSymbolNode MethodGenericDictionary(MethodDesc method, mdToken token)
+        {
+            return MethodGenericDictionary(method);
+        }
+
+        public virtual ISortableSymbolNode MethodGenericDictionary(MethodDesc method)
         {
             return _methodGenericDictionaries.GetOrAdd(method);
         }

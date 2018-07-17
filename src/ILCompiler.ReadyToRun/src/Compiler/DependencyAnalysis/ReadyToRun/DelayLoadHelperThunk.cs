@@ -20,17 +20,11 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 
         private readonly ISymbolNode _moduleImport;
 
-        protected DelayLoadHelperThunk(ReadyToRunHelper helperId, ReadyToRunCodegenNodeFactory factory, Import instanceCell)
+        public DelayLoadHelperThunk(ReadyToRunHelper helperId, ReadyToRunCodegenNodeFactory factory, Import instanceCell)
         {
             _helperCell = factory.GetReadyToRunHelperCell(helperId);
             _instanceCell = instanceCell;
-            factory.HelperImports.AddImport(factory, _instanceCell);
             _moduleImport = factory.ModuleImport;
-        }
-
-        public DelayLoadHelperThunk(ReadyToRunCodegenNodeFactory factory, Import instanceCell)
-            : this(ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper, factory, instanceCell)
-        {
         }
 
         public void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)

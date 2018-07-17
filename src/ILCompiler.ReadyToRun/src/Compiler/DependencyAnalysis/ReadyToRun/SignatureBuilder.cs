@@ -316,7 +316,8 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
                     break;
 
                 case CorTokenType.mdtMethodSpec:
-                    throw new NotImplementedException();
+                    EmitMethodSpecificationSignature(method, token, context);
+                    break;
 
                 default:
                     throw new NotImplementedException();
@@ -333,6 +334,52 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         {
             Debug.Assert(TypeFromToken(memberRefToken) == CorTokenType.mdtMemberRef);
             EmitUInt(RidFromToken(memberRefToken));
+        }
+
+        private void EmitMethodSpecificationSignature(MethodDesc method, mdToken token, SignatureContext context)
+        {
+            switch (TypeFromToken(token))
+            {
+                case CorTokenType.mdtMethodSpec:
+                    {
+                        MethodSpecification methodSpec = context.MetadataReader.GetMethodSpecification((MethodSpecificationHandle)MetadataTokens.Handle((int)token));
+
+                        ReadyToRunMethodSigFlags flags = ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MethodInstantiation;
+                        mdToken genericMethodToken;
+
+                        switch (methodSpec.Method.Kind)
+                        {
+                            case HandleKind.MethodDefinition:
+                                {
+                                    genericMethodToken = (mdToken)MetadataTokens.GetToken(methodSpec.Method);
+                                    MethodDefinition methodDef = context.MetadataReader.GetMethodDefinition((MethodDefinitionHandle)methodSpec.Method);
+                                    TypeDefinitionHandle typeHandle = methodDef.GetDeclaringType();
+                                }
+                                break;
+
+                            case HandleKind.MemberReference:
+                                flags |= ReadyToRunMethodSigFlags.READYTORUN_METHOD_SIG_MemberRefToken;
+                                genericMethodToken = (mdToken)MetadataTokens.GetToken(methodSpec.Method);
+                                break;
+
+                            default:
+                                throw new NotImplementedException();
+                        }
+
+                        EmitUInt((uint)flags);
+                        EmitTokenRid(genericMethodToken);
+                        ImmutableArray<byte[]> methodTypeSignatures = methodSpec.DecodeSignature<byte[], SignatureContext>(context, context);
+                        EmitUInt((uint)methodTypeSignatures.Length);
+                        foreach (byte[] methodTypeSignature in methodTypeSignatures)
+                        {
+                            EmitBytes(methodTypeSignature);
+                        }
+
+                        break;
+                    }
+                default:
+                    throw new NotImplementedException();
+            }
         }
     }
 

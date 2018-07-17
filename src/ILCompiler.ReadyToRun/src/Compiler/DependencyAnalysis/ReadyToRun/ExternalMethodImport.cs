@@ -24,8 +24,9 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             ReadyToRunFixupKind fixupKind,
             MethodDesc methodDesc,
             mdToken token,
-            MethodWithGCInfo localMethod)
-            : base(factory.MethodImports, new MethodFixupSignature(fixupKind, methodDesc, token))
+            MethodWithGCInfo localMethod,
+            MethodFixupSignature.SignatureKind signatureKind)
+            : base(factory.MethodImports, factory.GetOrAddMethodSignature(fixupKind, methodDesc, token, signatureKind))
         {
             factory.MethodImports.AddImport(factory, this);
             _methodDesc = methodDesc;
@@ -36,11 +37,6 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public MethodDesc Method => _methodDesc;
 
         int ISortableSymbolNode.ClassCode => 458823351;
-
-        public int CompareToImpl(ISortableSymbolNode other, CompilerComparer comparer)
-        {
-            throw new NotImplementedException();
-        }
 
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {

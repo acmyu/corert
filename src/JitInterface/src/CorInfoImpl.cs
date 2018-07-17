@@ -3264,7 +3264,7 @@ namespace Internal.JitInterface
 
                     if (targetMethod.RequiresInstMethodDescArg())
                     {
-                        instParam = _compilation.NodeFactory.MethodGenericDictionary(concreteMethod);
+                        instParam = _compilation.NodeFactory.MethodGenericDictionary(concreteMethod, pResolvedToken.token);
                     }
                     else if (targetMethod.RequiresInstMethodTableArg() || referencingArrayAddressMethod)
                     {

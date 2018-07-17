@@ -101,26 +101,28 @@ namespace ILCompiler.DependencyAnalysis
 
         protected override IMethodNode CreateMethodEntrypointNode(MethodDesc method, mdToken token)
         {
+            if (method is InstantiatedMethod instantiatedMethod)
+            {
+                return GetOrAddInstantiatedMethodNode(instantiatedMethod, token);
+            }
+
+            MethodWithGCInfo localMethod = null;
             if (CompilationModuleGroup.ContainsMethodBody(method, false))
             {
-                MethodWithGCInfo newMethodNode = new MethodWithGCInfo(method);
-                _runtimeFunctionsGCInfo.AddEmbeddedObject(newMethodNode.GCInfoNode);
-                int methodIndex = RuntimeFunctionsTable.Add(newMethodNode);
-                MethodEntryPointTable.Add(newMethodNode, methodIndex, this);
+                localMethod = new MethodWithGCInfo(method);
+                _runtimeFunctionsGCInfo.AddEmbeddedObject(localMethod.GCInfoNode);
+                int methodIndex = RuntimeFunctionsTable.Add(localMethod);
+                MethodEntryPointTable.Add(localMethod, methodIndex, this);
 
-                // TODO: hack - how do we distinguish emitting main entry point from calls between
+                // TODO: hack - how do we distinguish between emitting main entry point and calls between
                 // methods?
                 if (token == 0)
                 {
-                    return newMethodNode;
+                    return localMethod;
                 }
+            }
 
-                return GetOrAddImportedMethodNode(method, unboxingStub: false, token: token, localMethod: newMethodNode);
-            }
-            else
-            {
-                return GetOrAddImportedMethodNode(method, unboxingStub: false, token: token, localMethod: null);
-            }
+            return GetOrAddImportedMethodNode(method, unboxingStub: false, token: token, localMethod: localMethod);
         }
 
         protected override IMethodNode CreateStringAllocatorMethodNode(MethodDesc constructor, mdToken token)
@@ -350,7 +352,7 @@ namespace ILCompiler.DependencyAnalysis
             return new DelayLoadHelperImport(
                 this,
                 ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper_Obj,
-                new MethodFixupSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry, method, methodToken));
+                GetOrAddMethodSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry, method, methodToken, MethodFixupSignature.SignatureKind.Signature));
         }
 
         Dictionary<ILCompiler.ReadyToRunHelper, ISymbolNode> _helperCache = new Dictionary<ILCompiler.ReadyToRunHelper, ISymbolNode>();
@@ -452,9 +454,45 @@ namespace ILCompiler.DependencyAnalysis
             throw new NotImplementedException();
         }
 
+        struct TokenAndCallSite
+        {
+            public readonly mdToken Token;
+            public readonly string CallSite;
+
+            public TokenAndCallSite(mdToken token, string callSite)
+            {
+                CallSite = callSite;
+                Token = token;
+            }
+
+            public override bool Equals(object obj)
+            {
+                TokenAndCallSite other = (TokenAndCallSite)obj;
+                return CallSite == other.CallSite && Token == other.Token;
+            }
+
+            public override int GetHashCode()
+            {
+                return (CallSite != null ? CallSite.GetHashCode() : 0) + unchecked(31 * (int)Token);
+            }
+        }
+
+        Dictionary<TokenAndCallSite, ISymbolNode> _interfaceDispatchCells = new Dictionary<TokenAndCallSite, ISymbolNode>();
+
         public override ISymbolNode InterfaceDispatchCell(MethodDesc method, mdToken token, string callSite = null)
         {
-            return MethodEntrypoint(method, token, unboxingStub: false);
+            TokenAndCallSite cellKey = new TokenAndCallSite(token, callSite);
+            ISymbolNode dispatchCell;
+            if (!_interfaceDispatchCells.TryGetValue(cellKey, out dispatchCell))
+            {
+                dispatchCell = new DelayLoadHelperImport(this,
+                    ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_MethodCall,
+                    GetOrAddMethodSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry, method, token, MethodFixupSignature.SignatureKind.Signature),
+                    callSite);
+
+                _interfaceDispatchCells.Add(cellKey, dispatchCell);
+            }
+            return dispatchCell;
         }
 
         private Dictionary<ReadyToRunHelper, ISymbolNode> _constructedHelpers = new Dictionary<ReadyToRunHelper, ISymbolNode>();
@@ -481,6 +519,68 @@ namespace ILCompiler.DependencyAnalysis
         {
             return ReadyToRunHelperWithToken(helperId, entity, token);
         }
+
+        Dictionary<MethodDesc, ISortableSymbolNode> _genericDictionaryCache = new Dictionary<MethodDesc, ISortableSymbolNode>();
+
+        public override ISortableSymbolNode MethodGenericDictionary(MethodDesc method, mdToken token)
+        {
+            ISortableSymbolNode genericDictionary;
+            if (!_genericDictionaryCache.TryGetValue(method, out genericDictionary))
+            {
+                genericDictionary = new DelayLoadHelperImport(this,
+                    ILCompiler.DependencyAnalysis.ReadyToRun.ReadyToRunHelper.READYTORUN_HELPER_DelayLoad_Helper,
+                    GetOrAddMethodSignature(ReadyToRunFixupKind.READYTORUN_FIXUP_MethodDictionary, method, token, MethodFixupSignature.SignatureKind.Signature));
+                _genericDictionaryCache.Add(method, genericDictionary);
+            }
+            return genericDictionary;
+        }
+
+        struct TokenAndFixupKind
+        {
+            public readonly mdToken Token;
+            public readonly ReadyToRunFixupKind FixupKind;
+
+            public TokenAndFixupKind(mdToken token, ReadyToRunFixupKind fixupKind)
+            {
+                Token = token;
+                FixupKind = fixupKind;
+            }
+
+            public override bool Equals(object obj)
+            {
+                TokenAndFixupKind other = (TokenAndFixupKind)obj;
+                return Token == other.Token && FixupKind == other.FixupKind;
+            }
+
+            public override int GetHashCode()
+            {
+                return (int)Token ^ unchecked(31 * (int)FixupKind);
+            }
+        }
+
+        Dictionary<TokenAndFixupKind, MethodFixupSignature> _methodSignatures = new Dictionary<TokenAndFixupKind, MethodFixupSignature>();
+
+        public MethodFixupSignature GetOrAddMethodSignature(
+            ReadyToRunFixupKind fixupKind,
+            MethodDesc methodDesc,
+            mdToken token,
+            MethodFixupSignature.SignatureKind signatureKind)
+        {
+            TokenAndFixupKind signatureKey = new TokenAndFixupKind(token, fixupKind);
+            MethodFixupSignature signature;
+            if (!_methodSignatures.TryGetValue(signatureKey, out signature))
+            {
+                signature = new MethodFixupSignature(fixupKind, methodDesc, token, signatureKind);
+                _methodSignatures.Add(signatureKey, signature);
+            }
+            return signature;
+        }
+
+        public override ISortableSymbolNode MethodGenericDictionary(MethodDesc method)
+        {
+            throw new NotImplementedException();
+        }
+
 
         public override void AttachToDependencyGraph(DependencyAnalyzerBase<NodeFactory> graph)
         {
@@ -564,30 +664,50 @@ namespace ILCompiler.DependencyAnalysis
 
         public IMethodNode GetOrAddImportedMethodNode(MethodDesc method, bool unboxingStub, mdToken token, MethodWithGCInfo localMethod)
         {
-            CorTokenType tokenType = SignatureBuilder.TypeFromToken(token);
             ReadyToRunFixupKind fixupKind;
+            MethodFixupSignature.SignatureKind signatureKind;
+            CorTokenType tokenType = SignatureBuilder.TypeFromToken(token);
             switch (tokenType)
             {
                 case CorTokenType.mdtMethodDef:
                     fixupKind = ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_DefToken;
+                    signatureKind = MethodFixupSignature.SignatureKind.DefToken;
                     break;
 
                 case CorTokenType.mdtMemberRef:
                     fixupKind = ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_RefToken;
+                    signatureKind = MethodFixupSignature.SignatureKind.RefToken;
                     break;
 
                 default:
                     throw new NotImplementedException();
             }
-
-            Debug.Assert(tokenType == CorTokenType.mdtMemberRef || tokenType == CorTokenType.mdtMethodDef);
             IMethodNode methodImport;
             if (!_importMethods.TryGetValue(method, out methodImport))
             {
                 // First time we see a given external method - emit indirection cell and the import entry
-                ExternalMethodImport indirectionCell = new ExternalMethodImport(this, fixupKind, method, token, localMethod);
+                ExternalMethodImport indirectionCell = new ExternalMethodImport(this, fixupKind, method, token, localMethod, signatureKind);
                 _importMethods.Add(method, indirectionCell);
                 methodImport = indirectionCell;
+            }
+            return methodImport;
+        }
+
+        Dictionary<InstantiatedMethod, IMethodNode> _instantiatedMethodImports = new Dictionary<InstantiatedMethod, IMethodNode>();
+
+        private IMethodNode GetOrAddInstantiatedMethodNode(InstantiatedMethod method, mdToken token)
+        {
+            IMethodNode methodImport;
+            if (!_instantiatedMethodImports.TryGetValue(method, out methodImport))
+            {
+                methodImport = new ExternalMethodImport(
+                    this,
+                    ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry, 
+                    method, 
+                    token, 
+                    localMethod: null,
+                    MethodFixupSignature.SignatureKind.Signature);
+                _instantiatedMethodImports.Add(method, methodImport);
             }
             return methodImport;
         }

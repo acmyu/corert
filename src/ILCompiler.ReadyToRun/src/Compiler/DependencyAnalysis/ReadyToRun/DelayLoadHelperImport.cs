@@ -12,20 +12,29 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
     /// </summary>
     public class DelayLoadHelperImport : Import
     {
+        private readonly ReadyToRunHelper _helper;
+
         private readonly DelayLoadHelperThunk _delayLoadHelper;
 
-        public DelayLoadHelperImport(ReadyToRunCodegenNodeFactory factory, ReadyToRunHelper helper, Signature instanceSignature)
-            : base(factory.HelperImports, instanceSignature)
+        public DelayLoadHelperImport(ReadyToRunCodegenNodeFactory factory, ReadyToRunHelper helper, Signature instanceSignature, string callSite = null)
+            : base(factory.HelperImports, instanceSignature, callSite)
         {
             factory.HelperImports.AddImport(factory, this);
-            _delayLoadHelper = new DelayLoadHelperThunk(factory, this);
+            _helper = helper;
+            _delayLoadHelper = new DelayLoadHelperThunk(helper, factory, this);
         }
 
-        protected override string GetName(NodeFactory factory)
+        public override void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
         {
-            return "DelayLoadHelperImport("
-                + _delayLoadHelper.GetMangledName(factory.NameMangler)
-                + ")->" + ImportSignature.GetMangledName(factory.NameMangler);
+            sb.Append("DelayLoadHelperImport(");
+            sb.Append(_helper.ToString());
+            sb.Append(") -> ");
+            ImportSignature.AppendMangledName(nameMangler, sb);
+            if (CallSite != null)
+            {
+                sb.Append(" @ ");
+                sb.Append(CallSite);
+            }
         }
 
         protected override int ClassCode => 667823013;

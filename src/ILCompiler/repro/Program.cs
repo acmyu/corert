@@ -140,8 +140,7 @@ internal class Program
     private static bool StreamReaderReadLine()
     {
         Console.WriteLine($@"Dumping file: {TextFileName}");
-        // TODO: Dispose using (
-        StreamReader reader = new StreamReader(TextFileName, System.Text.Encoding.UTF8);
+        using (StreamReader reader = new StreamReader(TextFileName, System.Text.Encoding.UTF8))
         {
             Console.WriteLine("StreamReader created ...");
             string line1 = reader.ReadLine();
@@ -224,6 +223,30 @@ internal class Program
     }
     //*/
 
+    private static bool EmptyArray()
+    {
+        int[] emptyIntArray = Array.Empty<int>();
+        Console.WriteLine("Successfully constructed Array.Empty<int>!");
+        return emptyIntArray.Length == 0;
+    }
+
+    //*
+    private static bool EnumerateEmptyArray()
+    {
+        foreach (int element in Array.Empty<int>())
+        {
+            Console.Error.WriteLine($@"Error: Array.Empty<int> has an element {element}!");
+            return false;
+        }
+        foreach (string element in Array.Empty<string>())
+        {
+            Console.Error.WriteLine($@"Error: Array.Empty<string> has an element {element}");
+            return false;
+        }
+        return true;
+    }
+    //*/
+
     public static int Main()
     {
         /*
@@ -262,6 +285,9 @@ internal class Program
         TestCounts[ManipulateListOfInt() ? Success : Failure]++;
         TestCounts[ConstructListOfString() ? Success : Failure]++;
         TestCounts[ManipulateListOfString() ? Success : Failure]++;
+        
+        TestCounts[EmptyArray() ? Success : Failure]++;
+        // TestCounts[EnumerateEmptyArray() ? Success : Failure]++;
 
         //*
         if (TestCounts[Failure] == 0)

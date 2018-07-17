@@ -10,16 +10,19 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
     /// <summary>
     /// This class represents a single indirection cell in one of the import tables.
     /// </summary>
-    public class Import : EmbeddedObjectNode, ISymbolDefinitionNode
+    public class Import : EmbeddedObjectNode, ISymbolDefinitionNode, ISortableSymbolNode
     {
         public readonly ImportSectionNode Table;
 
         internal readonly RvaEmbeddedPointerIndirectionNode<Signature> ImportSignature;
 
-        public Import(ImportSectionNode tableNode, Signature importSignature)
+        internal readonly string CallSite;
+
+        public Import(ImportSectionNode tableNode, Signature importSignature, string callSite = null)
         {
             Table = tableNode;
-            ImportSignature = new RvaEmbeddedPointerIndirectionNode<Signature>(importSignature);
+            CallSite = callSite;
+            ImportSignature = new RvaEmbeddedPointerIndirectionNode<Signature>(importSignature, callSite);
         }
 
         protected override string GetName(NodeFactory factory)
@@ -29,7 +32,11 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             return sb.ToString();
         }
 
-        protected override int ClassCode => 667823013;
+        private const int ClassCodeValue = 667823013;
+
+        protected override int ClassCode => ClassCodeValue;
+
+        int ISortableSymbolNode.ClassCode => ClassCodeValue;
 
         public virtual bool EmitPrecode => Table.EmitPrecode;
 
@@ -40,7 +47,7 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             dataBuilder.EmitZeroPointer();
         }
 
-        public void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
+        public virtual void AppendMangledName(NameMangler nameMangler, Utf8StringBuilder sb)
         {
             sb.Append(Table.Name);
             sb.Append("->");
@@ -52,6 +59,11 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
         public override IEnumerable<DependencyListEntry> GetStaticDependencies(NodeFactory factory)
         {
             return new DependencyListEntry[] { new DependencyListEntry(ImportSignature, "Signature for ready-to-run fixup import") };
+        }
+
+        public int CompareToImpl(ISortableSymbolNode other, CompilerComparer comparer)
+        {
+            return new ObjectNodeComparer(comparer).Compare(this, (Import)other);
         }
 
         public override bool RepresentsIndirectionCell => true;

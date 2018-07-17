@@ -12,17 +12,27 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
 {
     public class MethodFixupSignature : Signature
     {
+        public enum SignatureKind
+        {
+            DefToken,
+            RefToken,
+            Signature,
+        }
+
         private readonly ReadyToRunFixupKind _fixupKind;
 
         private readonly MethodDesc _methodDesc;
         
         private readonly mdToken _methodToken;
 
-        public MethodFixupSignature(ReadyToRunFixupKind fixupKind, MethodDesc methodDesc, mdToken methodToken)
+        private readonly SignatureKind _signatureKind;
+
+        public MethodFixupSignature(ReadyToRunFixupKind fixupKind, MethodDesc methodDesc, mdToken methodToken, SignatureKind signatureKind)
         {
             _fixupKind = fixupKind;
             _methodDesc = methodDesc;
             _methodToken = methodToken;
+            _signatureKind = signatureKind;
         }
 
         protected override int ClassCode => 150063499;
@@ -34,21 +44,18 @@ namespace ILCompiler.DependencyAnalysis.ReadyToRun
             dataBuilder.AddSymbol(this);
 
             dataBuilder.EmitByte((byte)_fixupKind);
-            switch (_fixupKind)
+            switch (_signatureKind)
             {
-                case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry:
-                case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry:
-                    dataBuilder.EmitMethodSignature(_methodDesc, _methodToken, r2rFactory.SignatureContext);
-                    break;
-
-                case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_DefToken:
-                // case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry_DefToken:
+                case SignatureKind.DefToken:
                     dataBuilder.EmitMethodDefToken(_methodToken);
                     break;
 
-                case ReadyToRunFixupKind.READYTORUN_FIXUP_MethodEntry_RefToken:
-                // case ReadyToRunFixupKind.READYTORUN_FIXUP_VirtualEntry_RefToken:
+                case SignatureKind.RefToken:
                     dataBuilder.EmitMethodRefToken(_methodToken);
+                    break;
+
+                case SignatureKind.Signature:
+                    dataBuilder.EmitMethodSignature(_methodDesc, _methodToken, r2rFactory.SignatureContext);
                     break;
 
                 default:
