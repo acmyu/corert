@@ -18,7 +18,7 @@ namespace ILCompiler.Compiler.Tests
         public DevirtualizationTests()
         {
             var target = new TargetDetails(TargetArchitecture.X64, TargetOS.Windows, TargetAbi.CoreRT);
-            _context = new CompilerTypeSystemContext(target, SharedGenericsMode.CanonicalReferenceTypes, false);
+            _context = new CompilerTypeSystemContext(target, SharedGenericsMode.CanonicalReferenceTypes);
 
             _context.InputFilePaths = new Dictionary<string, string> {
                 { "Test.CoreLib", @"Test.CoreLib.dll" },
